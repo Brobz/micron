@@ -1,5 +1,6 @@
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 
+use crate::structs::ent::Ent;
 use crate::Collider;
 use crate::CollisionSound;
 use crate::MouseInfo;
@@ -8,6 +9,8 @@ use crate::Velocity;
 
 pub const SCREEN_WIDTH: f32 = 1275.0;
 pub const SCREEN_HEIGHT: f32 = 720.0;
+
+pub const BASE_UNIT_SPEED: f32 = 250.0;
 
 // Defines the amount of time that should elapse between each physics step.
 pub const TIME_STEP: f32 = 1.0 / 60.0;
@@ -161,9 +164,12 @@ pub fn setup(
             },
             ..default()
         },
-        Unit,
+        Unit::new(
+            Ent::new(100.0),
+            BASE_UNIT_SPEED,
+            Velocity(Vec2::new(0.0, 0.0)),
+        ),
         Collider,
-        Velocity(Vec2::new(0.0, 0.0)),
     ));
 
     // Ball
@@ -174,9 +180,12 @@ pub fn setup(
             transform: Transform::from_translation(BALL_STARTING_POSITION).with_scale(BALL_SIZE),
             ..default()
         },
-        Unit,
+        Unit::new(
+            Ent::new(100.0),
+            BASE_UNIT_SPEED,
+            Velocity(Vec2::new(0.0, 0.0)),
+        ),
         Collider,
-        Velocity(Vec2::new(0.0, 0.0)),
     ));
 
     // Scoreboard
@@ -266,9 +275,12 @@ pub fn setup(
                     },
                     ..default()
                 },
-                Unit,
+                Unit::new(
+                    Ent::new(100.0),
+                    BASE_UNIT_SPEED,
+                    Velocity(Vec2::new(0.0, 0.0)),
+                ),
                 Collider,
-                Velocity(Vec2::new(0.0, 0.0)),
             ));
         }
     }

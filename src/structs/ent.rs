@@ -1,18 +1,18 @@
 use bevy::prelude::*;
 
-use crate::TIME_STEP;
-
 #[derive(Component)]
-pub struct Ent;
+pub struct Ent {
+    pub position: Vec3,
+    pub max_hp: f32,
+    pub hp: f32,
+}
 
-#[derive(Component, Deref, DerefMut)]
-pub struct Velocity(pub Vec2);
-
-// TODO: MAKE THIS METHOD ACTUALLY DO WHAT THE COMMENT BELOW SAYS
-// This method applies velocity each tick to every entity
-pub fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>) {
-    for (mut transform, velocity) in &mut query {
-        transform.translation.x += velocity.x * TIME_STEP;
-        transform.translation.y += velocity.y * TIME_STEP;
+impl Ent {
+    pub fn new(max_hp: f32) -> Self {
+        Self {
+            position: Vec3::new(-1.0, -1.0, 1.0),
+            max_hp,
+            hp: max_hp,
+        }
     }
 }

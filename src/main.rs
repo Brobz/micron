@@ -2,9 +2,8 @@
 // (for early rust && bevy refs)
 
 // TODO:
-//          1. Move Velocity inside of Ent and Unit
-//          2. Add order queue and completion / cancelation of orders (stopping when H is pressed or when reached destination)
-//          3. Add shift clicking for adding into queue, regular clicking replaces queue (cancels all)
+//          1. Figure out combat (attack & attack move orders)
+//          ??. Add stop order (H)
 
 mod consts;
 mod structs;
@@ -17,8 +16,8 @@ use crate::mouse_info::*;
 use crate::selection::*;
 
 use crate::collider::*;
-use crate::ent::*;
 use crate::unit::*;
+use structs::order::*;
 
 use crate::setup::*;
 
@@ -58,7 +57,8 @@ fn main() {
                 .with_system(draw_selection_box.after(mouse_button_input))
                 .with_system(check_for_selection_box_collisions.after(draw_selection_box))
                 .with_system(apply_velocity.before(check_for_selection_box_collisions))
-                .with_system(issue_commands.after(check_for_selection_box_collisions)),
+                .with_system(execute_orders.after(issue_orders))
+                .with_system(issue_orders.after(check_for_selection_box_collisions)),
         )
         .add_system(bevy::window::close_on_esc)
         .run();
