@@ -2,8 +2,18 @@
 name = "micron"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# Enable max optimizations for dependencies, but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
+
+[dependencies.sdl2]
+version = "*"
+features = ["use_mac_framework"]
+
 [dependencies]
-bevy = "0.9.1"
+vector2d = "2.2.0"
+rand = "0.8.4"
