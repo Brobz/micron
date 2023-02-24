@@ -3,7 +3,8 @@
 
 // TODO:
 //          1. Figure out combat (attack & attack move orders)
-//          ??. Add stop order (H)
+//          ??. Add stop order (S)
+//          ??. Add patrol order (R)
 
 mod consts;
 mod structs;
@@ -15,8 +16,9 @@ use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::BlendMode;
-use structs::ent::Ent;
+use structs::ent::{Ent, EntID};
 use structs::order::{Order, OrderType};
+use structs::world_info::WorldInfo;
 use vector2d::Vector2D;
 
 use crate::{consts::*, structs::*};
@@ -46,23 +48,26 @@ fn main() -> Result<(), String> {
     let mut event_queue = sdl_context.event_pump().unwrap();
 
     let mut world = World::new();
+    let mut world_info = WorldInfo::new();
 
     let mut rng = rand::thread_rng();
 
-    for _ in 1..100 {
-        world.units.push(Unit::new(
-            Ent::new(
-                100.0,
-                Vector2D::<f32>::new(
-                    rng.gen_range(0..SCREEN_WIDTH) as f32,
-                    rng.gen_range(0..SCREEN_HEIGHT) as f32,
-                ),
-                Point::new(rng.gen_range(1..50) as i32, rng.gen_range(1..50) as i32),
+    for _ in 1..20 {
+        let new_ent = Ent::new(
+            100.0,
+            Vector2D::<f32>::new(
+                rng.gen_range(0..SCREEN_WIDTH) as f32,
+                rng.gen_range(0..SCREEN_HEIGHT) as f32,
             ),
+            Point::new(rng.gen_range(1..50) as i32, rng.gen_range(1..50) as i32),
+        );
+        world_info.add_ent(&new_ent);
+        world.units.push(Unit::new(
+            new_ent,
             BASE_UNIT_SPEED,
             Vector2D::<f32>::new(
-                rng.gen_range(-BASE_UNIT_SPEED..BASE_UNIT_SPEED),
-                rng.gen_range(-BASE_UNIT_SPEED..BASE_UNIT_SPEED),
+                0.0, //rng.gen_range(-BASE_UNIT_SPEED..BASE_UNIT_SPEED),
+                0.0, // rng.gen_range(-BASE_UNIT_SPEED..BASE_UNIT_SPEED),
             ),
         ));
     }
@@ -81,16 +86,48 @@ fn main() -> Result<(), String> {
                 Event::MouseButtonDown {
                     mouse_btn, x, y, ..
                 } => {
+                    let mut possible_attack_target: Option<EntID> = None;
                     if mouse_btn.eq(&MouseButton::Left) {
+                        // Left click
+                        // Open selection
                         world.selection.open(Point::new(x, y), &mut world.units);
                     } else if mouse_btn.eq(&MouseButton::Right) {
+                        // Right click
+                        // Issue either a move or attack command
+                        let mouse_rect = Rect::new(x, y, 2, 2);
+
+                        // Check wether we clicked on something attackable
+                        for unit in world.units.iter() {
+                            if unit.ent.get_rect().has_intersection(mouse_rect) {
+                                possible_attack_target = Option::Some(unit.ent.id);
+                                break;
+                            }
+                        }
+
                         for unit in world.units.iter_mut() {
                             if unit.selected() {
-                                let move_order = Order::new(
-                                    OrderType::Move,
-                                    Vector2D::<f32>::new(x as f32, y as f32),
-                                );
-                                unit.add_order(move_order, !world.selection.queueing);
+                                if possible_attack_target.is_none() {
+                                    // No attack target found; Issue move order
+                                    let move_order = Order::new(
+                                        OrderType::Move,
+                                        Vector2D::<f32>::new(x as f32, y as f32),
+                                        None,
+                                    );
+                                    unit.add_order(move_order, !world.selection.queueing);
+                                } else {
+                                    // Attack target found; check if it is a valid one
+                                    let attack_target = possible_attack_target.unwrap();
+                                    if attack_target == unit.ent.id {
+                                        // Cannot attack yourself!
+                                        continue;
+                                    }
+                                    let attack_order = Order::new(
+                                        OrderType::Attack,
+                                        Vector2D::<f32>::new(x as f32, y as f32),
+                                        Option::Some(attack_target),
+                                    );
+                                    unit.add_order(attack_order, !world.selection.queueing);
+                                }
                             }
                         }
                     }
@@ -119,21 +156,25 @@ fn main() -> Result<(), String> {
 
         // UPDATE
 
-        // Execute orders
+        // Tick orders
+
         for unit in world.units.iter_mut() {
-            let (next_order_option, next_order_direction_option) = unit.execute_next_order();
-            if next_order_option.is_some() {
-                let next_order = next_order_option.unwrap();
-                match next_order.order_type {
-                    OrderType::Move => unit.set_velocity(next_order_direction_option.unwrap()),
+            for order in unit.orders.iter_mut() {
+                if order.attack_target.is_some() {
+                    // Here we would set the move target  to the attack target's ent position
+                    let possible_target_position =
+                        world_info.get_ent_poisition_by_id(&order.attack_target.unwrap());
+                    if possible_target_position.is_some() {
+                        order.move_target = possible_target_position.unwrap();
+                    }
                 }
             }
-            unit.update_orders();
         }
 
         // Tick units
         for unit in world.units.iter_mut() {
-            unit.tick();
+            unit.tick(&world_info);
+            world_info.update_ent(&unit.ent);
         }
 
         // DRAW

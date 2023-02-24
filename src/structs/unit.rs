@@ -16,9 +16,13 @@ use crate::TIME_STEP;
 use crate::order::Order;
 use crate::order::OrderType;
 
+use super::world_info::WorldInfo;
+
 pub struct Unit {
     pub ent: Ent,
     pub speed: f32,
+    pub damage: u32,
+    pub range: u32,
     selected: bool,
     velocity: Vector2D<f32>,
     pub orders: Vec<Order>,
@@ -29,14 +33,40 @@ impl Unit {
         Unit {
             ent,
             speed,
+            damage: 10,
+            range: 100,
             selected: false,
             velocity,
             orders: Vec::<Order>::new(),
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, world_info: &WorldInfo) {
         self.apply_velocity();
+
+        let (next_order_option, next_order_direction_option) = self.execute_next_order();
+        if next_order_option.is_some() {
+            let next_order = next_order_option.unwrap();
+            match next_order.order_type {
+                OrderType::Move => self.set_velocity(next_order_direction_option.unwrap()),
+                OrderType::Attack => {
+                    let attack_target_pos = world_info
+                        .get_ent_poisition_by_id(&next_order.attack_target.unwrap())
+                        .unwrap();
+                    if (self.ent.position - attack_target_pos).length() < self.range as f32 {
+                        // If target is in range, stop
+                        self.clear_velocity();
+                        // Try to attack
+                        // TODO: SETUP COMBAT!
+                        // self.attack(other);
+                    } else {
+                        // If target is not in range, move towards it
+                        self.set_velocity(next_order_direction_option.unwrap())
+                    }
+                }
+            }
+        }
+        self.update_orders();
     }
 
     pub fn draw(&self, canvas: &mut Canvas<Window>) {
@@ -45,38 +75,51 @@ impl Unit {
             canvas.set_draw_color(Color::RGB(0, 150, 0));
             for (i, order) in self.orders.iter().enumerate() {
                 // Draw lines connecting order waypoints
+                // Set colors according to order type
+                match order.order_type {
+                    OrderType::Move => canvas.set_draw_color(Color::RGB(0, 150, 0)),
+                    OrderType::Attack => canvas.set_draw_color(Color::RGB(150, 0, 0)),
+                }
                 match i {
                     // If this is the next order, draw  a line from unit to waypoint
                     0 => {
                         canvas
                             .draw_line(
                                 self.ent.get_rect().center(),
-                                Point::new(order.target.x as i32, order.target.y as i32),
+                                Point::new(order.move_target.x as i32, order.move_target.y as i32),
                             )
                             .ok()
                             .unwrap_or_default();
                     }
                     // Else, draw line from last waypoint to this one
                     _ => {
-                        let previous_order_target = self.orders.index(i - 1).target;
+                        let previous_order_target = self.orders.index(i - 1).move_target;
                         canvas
                             .draw_line(
                                 Point::new(
                                     previous_order_target.x as i32,
                                     previous_order_target.y as i32,
                                 ),
-                                Point::new(order.target.x as i32, order.target.y as i32),
+                                Point::new(order.move_target.x as i32, order.move_target.y as i32),
                             )
                             .ok()
                             .unwrap_or_default();
                     }
                 }
-                let waypoint_rect: Rect = Rect::from_center(
-                    Point::new(order.target.x as i32, order.target.y as i32),
-                    5,
-                    5,
-                );
-                canvas.fill_rect(waypoint_rect).ok().unwrap_or_default();
+
+                match order.order_type {
+                    // In case of move order, draw waypoint
+                    OrderType::Move => {
+                        let waypoint_rect: Rect = Rect::from_center(
+                            Point::new(order.move_target.x as i32, order.move_target.y as i32),
+                            5,
+                            5,
+                        );
+                        canvas.fill_rect(waypoint_rect).ok().unwrap_or_default();
+                    }
+                    // In case of attack order, nothing for now
+                    OrderType::Attack => (),
+                }
             }
         }
 
@@ -132,7 +175,7 @@ impl Unit {
     pub fn execute_next_order(&mut self) -> (Option<&mut Order>, Option<Vector2D<f32>>) {
         if self.orders.len() > 0 {
             let next_order = self.orders.index_mut(0);
-            let copy_of_target = next_order.target;
+            let copy_of_target = next_order.move_target;
             let rect_center = self.ent.get_rect().center();
             let new_velocity = get_direction_from_to(
                 Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32),
@@ -156,7 +199,7 @@ impl Unit {
                 match next_order.order_type {
                     OrderType::Move => {
                         let rect_center = self.ent.get_rect().center();
-                        if (next_order.target
+                        if (next_order.move_target
                             - Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32))
                         .length()
                             <= 3.0
@@ -165,11 +208,17 @@ impl Unit {
                             next_order.complete();
 
                             // The unit has moved to it's target successfully
-                            // If this was the last action in the queue, clear it's acceleration so it can rest
-                            if self.orders.len() == 1 {
-                                self.clear_velocity();
-                            };
+                            // Clear it's velocity so it can rest
+                            self.clear_velocity();
                         }
+                    }
+                    OrderType::Attack => {
+                        // TODO: SETUP COMBAT!
+                        println!(
+                            "is {}  done attacking {} ?",
+                            self.ent.id.0,
+                            next_order.attack_target.unwrap().0,
+                        )
                     }
                 }
             }
