@@ -1,3 +1,4 @@
 /target
 .DS_STORE
 Cargo.lock
+wiki_tui.log
