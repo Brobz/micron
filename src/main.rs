@@ -2,8 +2,8 @@
 // (for early rust && SDL2)
 
 // TODO:
-//          1. Add health bars
-//          2. Figure out proper combat (attack speed, attack_move)
+//          1. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
+//          2. Figure out proper combat (attack speed (maybe not?), attack_move)
 //          ??. Add stop order (S)
 //          ??. Add patrol order (R)
 
@@ -63,14 +63,7 @@ fn main() -> Result<(), String> {
             Point::new(rng.gen_range(1..50) as i32, rng.gen_range(1..50) as i32),
         );
         world_info.add_ent(&new_ent);
-        world.units.push(Unit::new(
-            new_ent,
-            BASE_UNIT_SPEED,
-            Vector2D::<f32>::new(
-                0.0, //rng.gen_range(-BASE_UNIT_SPEED..BASE_UNIT_SPEED),
-                0.0, // rng.gen_range(-BASE_UNIT_SPEED..BASE_UNIT_SPEED),
-            ),
-        ));
+        world.units.push(Unit::new(new_ent));
     }
 
     while running {
@@ -117,7 +110,9 @@ fn main() -> Result<(), String> {
                                     unit.add_order(move_order, !world.selection.queueing);
                                 } else {
                                     // Attack target found; check if it is a valid one
-                                    let attack_target = possible_attack_target.unwrap();
+                                    // (defaults to self in case it's not there, canceling the attack (it should be there tho))
+                                    let attack_target =
+                                        possible_attack_target.unwrap_or(unit.ent.id);
                                     if attack_target == unit.ent.id {
                                         // Cannot attack yourself!
                                         continue;
@@ -158,32 +153,37 @@ fn main() -> Result<(), String> {
         // UPDATE
 
         // Tick orders
-
         for unit in world.units.iter_mut() {
             for order in unit.orders.iter_mut() {
-                if order.attack_target.is_some() {
-                    // Here we would set the move target  to the attack target's ent position
-                    let possible_target_position =
-                        world_info.get_ent_poisition_by_id(&order.attack_target.unwrap());
-                    if possible_target_position.is_some() {
-                        order.move_target = possible_target_position.unwrap();
-                    }
+                if order.attack_target.is_none() {
+                    continue;
+                }
+                // For every attack order, update it's target position to the attacked entities position
+                let possible_target_position =
+                    world_info.get_ent_poisition_by_id(&order.attack_target.unwrap());
+
+                if possible_target_position.is_some() {
+                    order.move_target = possible_target_position.unwrap();
                 }
             }
         }
 
         // Tick units
+        // Also, store the index of any units that are to be removed after this tick
         let mut ent_cleanup_list: Vec<usize> = Vec::<usize>::new();
         for (i, unit) in world.units.iter_mut().enumerate() {
             // Check if this unit's entity still exists in the world
             if world_info.has_ent(&unit.ent) {
+                // If so, tick and update world_info
                 unit.tick(&mut world_info);
                 world_info.update_ent(&unit.ent);
             } else {
+                // If not, add to cleanup list
                 ent_cleanup_list.push(i);
             }
         }
 
+        // Remove dead units
         for i in ent_cleanup_list.iter() {
             world.units.remove(*i);
         }
@@ -198,6 +198,9 @@ fn main() -> Result<(), String> {
         for unit in world.units.iter() {
             unit.draw(&mut canvas);
         }
+
+        // Draw Health Bars
+        world_info.draw_health_bars(&mut canvas);
 
         // Draw selection box
         world.selection.draw(&mut canvas);

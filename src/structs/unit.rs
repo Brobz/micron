@@ -10,6 +10,10 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use crate::consts::helper::get_direction_from_to;
+use crate::consts::setup::ATTACKER_SPEED_PENALTY;
+use crate::consts::setup::BASE_UNIT_DAMAGE;
+use crate::consts::setup::BASE_UNIT_RANGE;
+use crate::consts::setup::BASE_UNIT_SPEED;
 use crate::ent::Ent;
 use crate::TIME_STEP;
 
@@ -21,63 +25,73 @@ use super::world_info::WorldInfo;
 pub struct Unit {
     pub ent: Ent,
     pub speed: f32,
-    pub damage: u32,
-    pub range: u32,
+    pub damage: f32,
+    pub range: f32,
     selected: bool,
+    is_attacking: bool,
     velocity: Vector2D<f32>,
     pub orders: Vec<Order>,
 }
 
 impl Unit {
-    pub fn new(ent: Ent, speed: f32, velocity: Vector2D<f32>) -> Unit {
+    pub fn new(ent: Ent) -> Unit {
         Unit {
             ent,
-            speed,
-            damage: 10,
-            range: 100,
+            speed: BASE_UNIT_SPEED,
+            damage: BASE_UNIT_DAMAGE,
+            range: BASE_UNIT_RANGE,
             selected: false,
-            velocity,
+            is_attacking: false,
+            velocity: Vector2D::<f32>::new(0.0, 0.0),
             orders: Vec::<Order>::new(),
         }
     }
 
     pub fn tick(&mut self, world_info: &mut WorldInfo) {
         // Update local HP based on world_info data
-        self.ent.hp = world_info.get_ent_hp(&self.ent).unwrap();
+        self.ent.hp = world_info.get_ent_hp(&self.ent).unwrap_or(0.0);
 
         // Apply velocity (if any)
         self.apply_velocity();
 
         // Execute next order
+        self.update_orders(&world_info);
         let (next_order_option, next_order_direction_option) = self.execute_next_order();
-        if next_order_option.is_some() {
-            let next_order = next_order_option.unwrap();
-            match next_order.order_type {
-                OrderType::Move => self.set_velocity(next_order_direction_option.unwrap()),
-                OrderType::Attack => {
-                    let possible_attack_target = &next_order.attack_target;
-                    if possible_attack_target.is_some() {
-                        let attack_target = possible_attack_target.unwrap();
-                        let possible_attack_target_pos =
-                            world_info.get_ent_poisition_by_id(&attack_target);
-                        if possible_attack_target_pos.is_some() {
-                            let attack_target_pos = possible_attack_target_pos.unwrap();
-                            if (self.ent.position - attack_target_pos).length() < self.range as f32
-                            {
-                                // If target is in range, stop
-                                self.clear_velocity();
-                                // Try to attack
-                                world_info.damage_ent(&attack_target, self.damage);
-                            } else {
-                                // If target is not in range, move towards it
-                                self.set_velocity(next_order_direction_option.unwrap())
-                            }
-                        }
-                    }
+        if next_order_option.is_none() {
+            return;
+        }
+        let next_order = next_order_option.unwrap();
+        match next_order.order_type {
+            OrderType::Move => {
+                self.is_attacking = false;
+                self.set_velocity(next_order_direction_option.unwrap());
+            }
+            OrderType::Attack => {
+                let possible_attack_target = &next_order.attack_target;
+                if possible_attack_target.is_none() {
+                    return;
+                }
+                let attack_target = possible_attack_target.unwrap();
+                let possible_attack_target_pos = world_info.get_ent_poisition_by_id(&attack_target);
+                if possible_attack_target_pos.is_none() {
+                    return;
+                }
+                let attack_target_pos = possible_attack_target_pos.unwrap();
+                if (self.ent.position - attack_target_pos).length() < self.range as f32 {
+                    // If target is in range, stop
+                    self.clear_velocity();
+                    // Mark as attacking
+                    self.is_attacking = true;
+                    // Try to attack
+                    world_info.damage_ent(&attack_target, self.damage * TIME_STEP);
+                } else {
+                    // If target is not in range, move towards it
+                    self.set_velocity(next_order_direction_option.unwrap());
+                    // Mark as not attacking
+                    self.is_attacking = false;
                 }
             }
         }
-        self.update_orders(&world_info);
     }
 
     pub fn draw(&self, canvas: &mut Canvas<Window>) {
@@ -132,6 +146,23 @@ impl Unit {
                     OrderType::Attack => (),
                 }
             }
+        } else if self.is_attacking {
+            // Draw attack lines (if attacking)
+            let possible_attack_order = self.orders.get(0);
+            if possible_attack_order.is_some() {
+                let attack_order = possible_attack_order.unwrap();
+                canvas.set_draw_color(Color::RED);
+                canvas
+                    .draw_line(
+                        self.ent.get_rect().center(),
+                        Point::new(
+                            attack_order.move_target.x as i32,
+                            attack_order.move_target.y as i32,
+                        ),
+                    )
+                    .ok()
+                    .unwrap_or_default();
+            }
         }
 
         // If selected, draw selection border
@@ -172,8 +203,13 @@ impl Unit {
 
     // This method applies velocity each tick to the unit
     pub fn apply_velocity(&mut self) {
-        self.ent.position.x += self.velocity.x * TIME_STEP;
-        self.ent.position.y += self.velocity.y * TIME_STEP;
+        let attack_penalty: f32 = if self.is_attacking {
+            ATTACKER_SPEED_PENALTY
+        } else {
+            1.0
+        };
+        self.ent.position.x += self.velocity.x * TIME_STEP * attack_penalty;
+        self.ent.position.y += self.velocity.y * TIME_STEP * attack_penalty;
     }
 
     pub fn add_order(&mut self, _order: Order, replace: bool) {
@@ -226,6 +262,9 @@ impl Unit {
                     }
                     OrderType::Attack => {
                         if !world_info.has_ent_by_id(&next_order.attack_target.unwrap()) {
+                            // Mark self as not attacking
+                            self.is_attacking = false;
+
                             // Mark this order as completed
                             next_order.complete();
 
