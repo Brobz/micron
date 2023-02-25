@@ -10,12 +10,12 @@ pub struct Ent {
     pub position: Vector2D<f32>,
     pub rect_size: Point,
     pub radius: i32,
-    pub max_hp: f32,
+    pub max_hp: u32,
     pub hp: f32,
 }
 
 impl Ent {
-    pub fn new(max_hp: f32, position: Vector2D<f32>, rect_size: Point) -> Ent {
+    pub fn new(max_hp: u32, position: Vector2D<f32>, rect_size: Point) -> Ent {
         unsafe {
             CURRENT_ENT_ID.0 += 1;
         }
@@ -25,7 +25,7 @@ impl Ent {
             rect_size,
             radius: -1,
             max_hp,
-            hp: max_hp,
+            hp: max_hp as f32,
         }
     }
 

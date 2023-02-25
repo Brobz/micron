@@ -41,32 +41,43 @@ impl Unit {
         }
     }
 
-    pub fn tick(&mut self, world_info: &WorldInfo) {
+    pub fn tick(&mut self, world_info: &mut WorldInfo) {
+        // Update local HP based on world_info data
+        self.ent.hp = world_info.get_ent_hp(&self.ent).unwrap();
+
+        // Apply velocity (if any)
         self.apply_velocity();
 
+        // Execute next order
         let (next_order_option, next_order_direction_option) = self.execute_next_order();
         if next_order_option.is_some() {
             let next_order = next_order_option.unwrap();
             match next_order.order_type {
                 OrderType::Move => self.set_velocity(next_order_direction_option.unwrap()),
                 OrderType::Attack => {
-                    let attack_target_pos = world_info
-                        .get_ent_poisition_by_id(&next_order.attack_target.unwrap())
-                        .unwrap();
-                    if (self.ent.position - attack_target_pos).length() < self.range as f32 {
-                        // If target is in range, stop
-                        self.clear_velocity();
-                        // Try to attack
-                        // TODO: SETUP COMBAT!
-                        // self.attack(other);
-                    } else {
-                        // If target is not in range, move towards it
-                        self.set_velocity(next_order_direction_option.unwrap())
+                    let possible_attack_target = &next_order.attack_target;
+                    if possible_attack_target.is_some() {
+                        let attack_target = possible_attack_target.unwrap();
+                        let possible_attack_target_pos =
+                            world_info.get_ent_poisition_by_id(&attack_target);
+                        if possible_attack_target_pos.is_some() {
+                            let attack_target_pos = possible_attack_target_pos.unwrap();
+                            if (self.ent.position - attack_target_pos).length() < self.range as f32
+                            {
+                                // If target is in range, stop
+                                self.clear_velocity();
+                                // Try to attack
+                                world_info.damage_ent(&attack_target, self.damage);
+                            } else {
+                                // If target is not in range, move towards it
+                                self.set_velocity(next_order_direction_option.unwrap())
+                            }
+                        }
                     }
                 }
             }
         }
-        self.update_orders();
+        self.update_orders(&world_info);
     }
 
     pub fn draw(&self, canvas: &mut Canvas<Window>) {
@@ -138,7 +149,7 @@ impl Unit {
                 .unwrap_or_default();
         }
 
-        // Draw self
+        // Draw self (if alive)
         canvas.set_draw_color(Color::RGB(50, 10, 50));
         let rect: Rect = Rect::new(
             self.ent.position.x as i32,
@@ -146,8 +157,9 @@ impl Unit {
             self.ent.rect_size.x as u32,
             self.ent.rect_size.y as u32,
         );
-
-        canvas.fill_rect(rect).ok().unwrap_or_default();
+        if self.ent.hp > 0.0 {
+            canvas.fill_rect(rect).ok().unwrap_or_default();
+        }
     }
 
     pub fn set_velocity(&mut self, _velocity: Vector2D<f32>) {
@@ -191,7 +203,7 @@ impl Unit {
     // This method checks the current executed order for completion
     // If its completed, marks it as so, and processes results
     // Then removes all completed orders from unit's vector
-    pub fn update_orders(&mut self) {
+    pub fn update_orders(&mut self, world_info: &WorldInfo) {
         if self.orders.len() > 0 {
             let next_order = self.orders.index_mut(0);
 
@@ -213,12 +225,14 @@ impl Unit {
                         }
                     }
                     OrderType::Attack => {
-                        // TODO: SETUP COMBAT!
-                        println!(
-                            "is {}  done attacking {} ?",
-                            self.ent.id.0,
-                            next_order.attack_target.unwrap().0,
-                        )
+                        if !world_info.has_ent_by_id(&next_order.attack_target.unwrap()) {
+                            // Mark this order as completed
+                            next_order.complete();
+
+                            // The unit has moved to it's target successfully
+                            // Clear it's velocity so it can rest
+                            self.clear_velocity();
+                        }
                     }
                 }
             }

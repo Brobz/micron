@@ -2,7 +2,8 @@
 // (for early rust && SDL2)
 
 // TODO:
-//          1. Figure out combat (attack & attack move orders)
+//          1. Add health bars
+//          2. Figure out proper combat (attack speed, attack_move)
 //          ??. Add stop order (S)
 //          ??. Add patrol order (R)
 
@@ -52,9 +53,9 @@ fn main() -> Result<(), String> {
 
     let mut rng = rand::thread_rng();
 
-    for _ in 1..20 {
+    for _ in 1..10 {
         let new_ent = Ent::new(
-            100.0,
+            100,
             Vector2D::<f32>::new(
                 rng.gen_range(0..SCREEN_WIDTH) as f32,
                 rng.gen_range(0..SCREEN_HEIGHT) as f32,
@@ -172,9 +173,19 @@ fn main() -> Result<(), String> {
         }
 
         // Tick units
-        for unit in world.units.iter_mut() {
-            unit.tick(&world_info);
-            world_info.update_ent(&unit.ent);
+        let mut ent_cleanup_list: Vec<usize> = Vec::<usize>::new();
+        for (i, unit) in world.units.iter_mut().enumerate() {
+            // Check if this unit's entity still exists in the world
+            if world_info.has_ent(&unit.ent) {
+                unit.tick(&mut world_info);
+                world_info.update_ent(&unit.ent);
+            } else {
+                ent_cleanup_list.push(i);
+            }
+        }
+
+        for i in ent_cleanup_list.iter() {
+            world.units.remove(*i);
         }
 
         // DRAW
