@@ -55,7 +55,7 @@ impl Unit {
         self.apply_velocity();
 
         // Execute next order
-        self.update_orders(&world_info);
+        self.update_orders(world_info);
         let (next_order_option, next_order_direction_option) = self.execute_next_order();
         if next_order_option.is_none() {
             return;
@@ -77,7 +77,7 @@ impl Unit {
                     return;
                 }
                 let attack_target_pos = possible_attack_target_pos.unwrap();
-                if (self.ent.position - attack_target_pos).length() < self.range as f32 {
+                if (self.ent.position - attack_target_pos).length() < self.range {
                     // If target is in range, stop
                     self.clear_velocity();
                     // Mark as attacking
@@ -149,8 +149,7 @@ impl Unit {
         } else if self.is_attacking {
             // Draw attack lines (if attacking)
             let possible_attack_order = self.orders.get(0);
-            if possible_attack_order.is_some() {
-                let attack_order = possible_attack_order.unwrap();
+            if let Some(attack_order) = possible_attack_order {
                 canvas.set_draw_color(Color::RED);
                 canvas
                     .draw_line(
@@ -221,7 +220,7 @@ impl Unit {
 
     // If there is an order in the vector, grab it, mark it as executed, and process it's effects
     pub fn execute_next_order(&mut self) -> (Option<&mut Order>, Option<Vector2D<f32>>) {
-        if self.orders.len() > 0 {
+        if !self.orders.is_empty() {
             let next_order = self.orders.index_mut(0);
             let copy_of_target = next_order.move_target;
             let rect_center = self.ent.get_rect().center();
@@ -240,7 +239,7 @@ impl Unit {
     // If its completed, marks it as so, and processes results
     // Then removes all completed orders from unit's vector
     pub fn update_orders(&mut self, world_info: &WorldInfo) {
-        if self.orders.len() > 0 {
+        if !self.orders.is_empty() {
             let next_order = self.orders.index_mut(0);
 
             if !next_order.completed && next_order.executed {

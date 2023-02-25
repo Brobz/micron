@@ -4,6 +4,7 @@
 // TODO:
 //          1. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
 //          2. Figure out proper combat (attack speed (maybe not?), attack_move)
+//          ??. Add some logic to allow a unit to move while attacking (would need some sort of anchor target system; maintain target while in range, lose it when out of range)
 //          ??. Add stop order (S)
 //          ??. Add patrol order (R)
 
@@ -60,7 +61,7 @@ fn main() -> Result<(), String> {
                 rng.gen_range(0..SCREEN_WIDTH) as f32,
                 rng.gen_range(0..SCREEN_HEIGHT) as f32,
             ),
-            Point::new(rng.gen_range(1..50) as i32, rng.gen_range(1..50) as i32),
+            Point::new(rng.gen_range(1..50), rng.gen_range(1..50)),
         );
         world_info.add_ent(&new_ent);
         world.units.push(Unit::new(new_ent));
@@ -162,8 +163,8 @@ fn main() -> Result<(), String> {
                 let possible_target_position =
                     world_info.get_ent_poisition_by_id(&order.attack_target.unwrap());
 
-                if possible_target_position.is_some() {
-                    order.move_target = possible_target_position.unwrap();
+                if let Some(target_position) = possible_target_position {
+                    order.move_target = target_position;
                 }
             }
         }

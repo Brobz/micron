@@ -52,15 +52,15 @@ impl WorldInfo {
     }
 
     pub fn damage_ent(&mut self, ent_id: &EntID, dmg: f32) {
-        if self.ent_hp.get_mut(&ent_id).is_none() {
+        if self.ent_hp.get_mut(ent_id).is_none() {
             return;
         }
 
-        let new_hp = *self.ent_hp.get_mut(&ent_id).unwrap() - dmg as f32;
+        let new_hp = *self.ent_hp.get_mut(ent_id).unwrap() - dmg;
         if new_hp < 0.0 {
             self.remove_ent_by_id(ent_id);
         } else {
-            self.ent_hp.remove(&ent_id);
+            self.ent_hp.remove(ent_id);
             self.ent_hp.insert(*ent_id, new_hp);
         }
     }
@@ -77,27 +77,27 @@ impl WorldInfo {
     }
 
     pub fn clear_ent_by_id(&mut self, ent_id: &EntID) {
-        if self.ent_hp.get_mut(&ent_id).is_some() {
-            self.ent_hp.remove(&ent_id);
+        if self.ent_hp.get_mut(ent_id).is_some() {
+            self.ent_hp.remove(ent_id);
         }
-        if self.ent_position.get_mut(&ent_id).is_some() {
-            self.ent_position.remove(&ent_id);
+        if self.ent_position.get_mut(ent_id).is_some() {
+            self.ent_position.remove(ent_id);
         }
     }
 
     pub fn remove_ent_by_id(&mut self, ent_id: &EntID) {
-        self.clear_ent_by_id(&ent_id);
-        if self.ent_max_hp.get_mut(&ent_id).is_some() {
-            self.ent_max_hp.remove(&ent_id);
+        self.clear_ent_by_id(ent_id);
+        if self.ent_max_hp.get_mut(ent_id).is_some() {
+            self.ent_max_hp.remove(ent_id);
         }
     }
 
     pub fn has_ent(&self, ent: &Ent) -> bool {
-        return self.has_ent_by_id(&ent.id);
+        self.has_ent_by_id(&ent.id)
     }
 
     pub fn has_ent_by_id(&self, ent_id: &EntID) -> bool {
-        if self.ent_hp.get(&ent_id).is_some() {
+        if self.ent_hp.get(ent_id).is_some() {
             return true;
         }
         false

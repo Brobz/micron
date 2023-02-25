@@ -7,7 +7,7 @@ pub static mut CURRENT_ENT_ID: EntID = EntID(0);
 
 // This method returns a normalized vector with size speed that points from, to
 pub fn get_direction_from_to(from: Vector2D<f32>, to: Vector2D<f32>, speed: f32) -> Vector2D<f32> {
-    return (to - from).normalise() * speed;
+    (to - from).normalise() * speed
 }
 
 // This method takes in a vec2 position of where the mouse is currently, and one of where it was originally clicked;
@@ -15,14 +15,14 @@ pub fn get_direction_from_to(from: Vector2D<f32>, to: Vector2D<f32>, speed: f32)
 pub fn find_selection_box_translation(curr_pos: Point, origin: Point) -> Point {
     Point::new(
         if origin.x > curr_pos.x {
-            curr_pos.x as i32
+            curr_pos.x
         } else {
-            origin.x as i32
+            origin.x
         },
         if origin.y > curr_pos.y {
-            curr_pos.y as i32
+            curr_pos.y
         } else {
-            origin.y as i32
+            origin.y
         },
     )
 }

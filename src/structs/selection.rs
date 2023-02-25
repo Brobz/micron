@@ -34,9 +34,9 @@ impl Selection {
             self.selection_box.set_x(new_pos.x);
             self.selection_box.set_y(new_pos.y);
             self.selection_box
-                .set_width((mouse_position.x - self.origin.x).abs() as u32);
+                .set_width((mouse_position.x - self.origin.x).unsigned_abs());
             self.selection_box
-                .set_height((mouse_position.y - self.origin.y).abs() as u32);
+                .set_height((mouse_position.y - self.origin.y).unsigned_abs());
             self.center = self.selection_box.center();
         } else if self.just_closed {
             for unit in units {
