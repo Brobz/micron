@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
 use sdl2::{
-    pixels::Color,
     rect::{Point, Rect},
     render::Canvas,
     video::Window,
 };
 use vector2d::Vector2D;
 
-use crate::consts::setup::{HEALTH_BAR_HEIGHT, HEALTH_BAR_WIDTH, HEALTH_BAR_Y_FLOAT};
+use crate::consts::values::{
+    BLACK_RGB, GREEN_RGB, HEALTH_BAR_HEIGHT, HEALTH_BAR_WIDTH, HEALTH_BAR_Y_FLOAT, RED_RGB,
+};
 
 use super::ent::{Ent, EntID};
 
@@ -120,11 +121,11 @@ impl WorldInfo {
                 HEALTH_BAR_HEIGHT as u32,
             );
 
-            canvas.set_draw_color(Color::RED);
+            canvas.set_draw_color(RED_RGB);
             canvas.fill_rect(empty_health_bar_rec).ok();
-            canvas.set_draw_color(Color::GREEN);
+            canvas.set_draw_color(GREEN_RGB);
             canvas.fill_rect(full_health_bar_rec).ok();
-            canvas.set_draw_color(Color::BLACK);
+            canvas.set_draw_color(BLACK_RGB);
             canvas.draw_rect(empty_health_bar_rec).ok();
         }
     }

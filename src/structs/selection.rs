@@ -4,7 +4,7 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use crate::consts::helper::find_selection_box_translation;
-use crate::consts::setup::SELECTION_BOX_COLOR;
+use crate::consts::values::SELECTION_BOX_COLOR;
 use crate::Unit;
 
 // This resource tracks the current selection of units and structures

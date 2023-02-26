@@ -2,8 +2,9 @@
 // (for early rust && SDL2)
 
 // TODO:
-//          ??. Limit framerate somehow?
+//          ??. Limit framerate somehow (try using sdl2_timing)?
 //          ??. Fix zoom out jankiness (would like it for the zoom behaviour to be reversed when zooming out... why is this so hard)
+//          0. Change all pair data types on structs to Vector2D<f32>; Then convert back to point as needed for drawing (might be better then current way of things)
 //          1. Add attack move order
 //          2. Figure out proper combat (attack speed (maybe not?))
 //          3. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
@@ -14,15 +15,14 @@
 mod consts;
 mod structs;
 
-use rand::Rng;
+use consts::values::{MAP_HEIGHT, MAP_PADDING, MAP_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH};
 use sdl2::pixels::Color;
-use sdl2::rect::{Point, Rect};
+use sdl2::rect::Rect;
 use sdl2::render::BlendMode;
 use structs::camera::Camera;
-use structs::ent::Ent;
+
 use structs::input::Input;
 use structs::world_info::WorldInfo;
-use vector2d::Vector2D;
 
 use crate::{consts::*, structs::*};
 
@@ -42,7 +42,13 @@ fn main() -> Result<(), String> {
         .build()
         .unwrap();
 
-    let mut canvas = window.into_canvas().build().unwrap();
+    let mut canvas = window
+        .into_canvas()
+        .accelerated()
+        .present_vsync()
+        .build()
+        .unwrap();
+
     canvas.set_blend_mode(BlendMode::Blend);
     let clear_color = Color::RGB(64, 192, 255);
 
@@ -53,18 +59,7 @@ fn main() -> Result<(), String> {
     let mut camera = Camera::new();
     let mut rng = rand::thread_rng();
 
-    for _ in 1..10 {
-        let new_ent = Ent::new(
-            100,
-            Vector2D::<f32>::new(
-                rng.gen_range(MAP_WIDTH / 2 + 25..MAP_WIDTH / 2 + SCREEN_WIDTH) as f32,
-                rng.gen_range(MAP_HEIGHT / 2 + 25..MAP_HEIGHT / 2 + SCREEN_HEIGHT) as f32,
-            ),
-            Point::new(rng.gen_range(5..50), rng.gen_range(5..50)),
-        );
-        world_info.add_ent(&new_ent);
-        world.units.push(Unit::new(new_ent));
-    }
+    spawn_debug_ents(&mut rng, &mut world, &mut world_info);
 
     loop {
         //////////////////////// USER INPUT /////////////////////////

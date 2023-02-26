@@ -2,6 +2,7 @@ use sdl2::rect::{Point, Rect};
 use vector2d::Vector2D;
 
 use crate::consts::helper::CURRENT_ENT_ID;
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct EntID(pub u64);
 

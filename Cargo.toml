@@ -12,8 +12,10 @@ opt-level = 3
 
 [dependencies.sdl2]
 version = "*"
-features = ["use_mac_framework"]
+default-features = false
+features = ["ttf","image","gfx","mixer"]
 
 [dependencies]
+sdl2_timing = "0.2.0"
 vector2d = "2.2.0"
 rand = "0.8.4"

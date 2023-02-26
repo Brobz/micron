@@ -4,7 +4,7 @@ use sdl2::{
 };
 use vector2d::Vector2D;
 
-use crate::consts::setup::{
+use crate::consts::values::{
     CAMERA_ZOOM_INCREMENT, MAP_HEIGHT, MAP_WIDTH, MAX_ZOOM_SCALE, MIN_ZOOM_SCALE, SCREEN_HEIGHT,
     SCREEN_WIDTH,
 };

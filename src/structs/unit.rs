@@ -1,24 +1,19 @@
-use std::ops::Index;
-use std::ops::IndexMut;
+use std::ops::{Index, IndexMut};
 
 use vector2d::Vector2D;
 
 use sdl2::pixels::Color;
-use sdl2::rect::Point;
-use sdl2::rect::Rect;
+use sdl2::rect::{Point, Rect};
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use crate::consts::helper::get_direction_from_to;
-use crate::consts::setup::ATTACKER_SPEED_PENALTY;
-use crate::consts::setup::BASE_UNIT_DAMAGE;
-use crate::consts::setup::BASE_UNIT_RANGE;
-use crate::consts::setup::BASE_UNIT_SPEED;
+use crate::consts::values::{
+    ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, RED_RGB, TIME_STEP,
+};
 use crate::ent::Ent;
-use crate::TIME_STEP;
 
-use crate::order::Order;
-use crate::order::OrderType;
+use crate::order::{Order, OrderType};
 
 use super::world_info::WorldInfo;
 
@@ -150,7 +145,7 @@ impl Unit {
             // Draw attack lines (if attacking)
             let possible_attack_order = self.orders.get(0);
             if let Some(attack_order) = possible_attack_order {
-                canvas.set_draw_color(Color::RED);
+                canvas.set_draw_color(RED_RGB);
                 canvas
                     .draw_line(
                         self.ent.get_rect().center(),

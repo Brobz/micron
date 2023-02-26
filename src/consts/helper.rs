@@ -3,6 +3,7 @@ use vector2d::Vector2D;
 
 use crate::structs::ent::EntID;
 
+// Counter to guarantee a unique EntID
 pub static mut CURRENT_ENT_ID: EntID = EntID(0);
 
 // This method returns a normalized vector with size speed that points from, to
