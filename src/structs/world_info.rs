@@ -77,17 +77,17 @@ impl WorldInfo {
     }
 
     pub fn clear_ent_by_id(&mut self, ent_id: &EntID) {
-        if self.ent_hp.get_mut(ent_id).is_some() {
+        if self.ent_hp.contains_key(ent_id) {
             self.ent_hp.remove(ent_id);
         }
-        if self.ent_position.get_mut(ent_id).is_some() {
+        if self.ent_position.contains_key(ent_id) {
             self.ent_position.remove(ent_id);
         }
     }
 
     pub fn remove_ent_by_id(&mut self, ent_id: &EntID) {
         self.clear_ent_by_id(ent_id);
-        if self.ent_max_hp.get_mut(ent_id).is_some() {
+        if self.ent_max_hp.contains_key(ent_id) {
             self.ent_max_hp.remove(ent_id);
         }
     }
@@ -97,7 +97,7 @@ impl WorldInfo {
     }
 
     pub fn has_ent_by_id(&self, ent_id: &EntID) -> bool {
-        if self.ent_hp.get(ent_id).is_some() {
+        if self.ent_hp.contains_key(ent_id) {
             return true;
         }
         false

@@ -3,6 +3,14 @@ use sdl2::pixels::Color;
 pub const SCREEN_WIDTH: u32 = 1275;
 pub const SCREEN_HEIGHT: u32 = 720;
 
+pub const CAMERA_ZOOM_INCREMENT: f32 = 0.015;
+pub const MAX_ZOOM_SCALE: u32 = 4;
+
+pub const MAP_WIDTH: u32 = SCREEN_WIDTH * MAX_ZOOM_SCALE;
+pub const MAP_HEIGHT: u32 = SCREEN_HEIGHT * MAX_ZOOM_SCALE;
+
+pub const MAP_PADDING: u32 = 100;
+
 pub const HEALTH_BAR_WIDTH: f32 = 100.0;
 pub const HEALTH_BAR_HEIGHT: f32 = 8.0;
 pub const HEALTH_BAR_Y_FLOAT: f32 = 35.0;

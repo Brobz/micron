@@ -1,3 +1,4 @@
+pub mod camera;
 pub mod ent;
 pub mod order;
 pub mod selection;

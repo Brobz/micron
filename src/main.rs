@@ -18,6 +18,7 @@ use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::BlendMode;
+use structs::camera::Camera;
 use structs::ent::{Ent, EntID};
 use structs::order::{Order, OrderType};
 use structs::world_info::WorldInfo;
@@ -43,7 +44,6 @@ fn main() -> Result<(), String> {
 
     let mut canvas = window.into_canvas().build().unwrap();
     canvas.set_blend_mode(BlendMode::Blend);
-    let screen_area = Rect::new(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     let clear_color = Color::RGB(64, 192, 255);
 
     let mut running = true;
@@ -51,17 +51,17 @@ fn main() -> Result<(), String> {
 
     let mut world = World::new();
     let mut world_info = WorldInfo::new();
-
+    let mut camera = Camera::new();
     let mut rng = rand::thread_rng();
 
     for _ in 1..10 {
         let new_ent = Ent::new(
             100,
             Vector2D::<f32>::new(
-                rng.gen_range(0..SCREEN_WIDTH) as f32,
-                rng.gen_range(0..SCREEN_HEIGHT) as f32,
+                rng.gen_range(MAP_WIDTH / 2 + 25..MAP_WIDTH / 2 + SCREEN_WIDTH) as f32,
+                rng.gen_range(MAP_HEIGHT / 2 + 25..MAP_HEIGHT / 2 + SCREEN_HEIGHT) as f32,
             ),
-            Point::new(rng.gen_range(1..50), rng.gen_range(1..50)),
+            Point::new(rng.gen_range(5..50), rng.gen_range(5..50)),
         );
         world_info.add_ent(&new_ent);
         world.units.push(Unit::new(new_ent));
@@ -74,66 +74,103 @@ fn main() -> Result<(), String> {
                     running = false;
                 }
 
+                Event::MouseWheel { direction, y, .. } => {
+                    camera.zoom(direction, y);
+                }
+
                 Event::MouseMotion { x, y, .. } => {
-                    world.selection.tick(Point::new(x, y), &mut world.units);
+                    let scaled_mouse_pos = camera.get_scaled_mouse_pos(x, y);
+                    world.selection.tick(scaled_mouse_pos, &mut world.units);
+                    if camera.is_anchored() {
+                        let anchored_mouse_pos = camera.get_anchored_mouse_pos(x, y);
+                        camera.drag_to(anchored_mouse_pos);
+                    }
                 }
 
                 Event::MouseButtonDown {
                     mouse_btn, x, y, ..
                 } => {
+                    // First, get scaled mouse position
+                    let scaled_mouse_pos = camera.get_scaled_mouse_pos(x, y);
+                    // This right click might issue an attack order, we will need to store its possible target
                     let mut possible_attack_target: Option<EntID> = None;
-                    if mouse_btn.eq(&MouseButton::Left) {
-                        // Left click
-                        // Open selection
-                        world.selection.open(Point::new(x, y), &mut world.units);
-                    } else if mouse_btn.eq(&MouseButton::Right) {
-                        // Right click
-                        // Issue either a move or attack command
-                        let mouse_rect = Rect::new(x, y, 2, 2);
 
-                        // Check wether we clicked on something attackable
-                        for unit in world.units.iter() {
-                            if unit.ent.get_rect().has_intersection(mouse_rect) {
-                                possible_attack_target = Option::Some(unit.ent.id);
-                                break;
-                            }
+                    match mouse_btn {
+                        MouseButton::Unknown => (),
+                        MouseButton::Left => {
+                            // Left click
+                            // Open selection
+                            world.selection.open(scaled_mouse_pos, &mut world.units);
                         }
+                        MouseButton::Middle => {
+                            camera.grab(&scaled_mouse_pos);
+                        }
+                        MouseButton::Right => {
+                            // Right click
+                            // Issue either a move or attack command
+                            let mouse_rect =
+                                Rect::new(scaled_mouse_pos.x, scaled_mouse_pos.y, 2, 2);
 
-                        for unit in world.units.iter_mut() {
-                            if unit.selected() {
-                                if possible_attack_target.is_none() {
-                                    // No attack target found; Issue move order
-                                    let move_order = Order::new(
-                                        OrderType::Move,
-                                        Vector2D::<f32>::new(x as f32, y as f32),
-                                        None,
-                                    );
-                                    unit.add_order(move_order, !world.selection.queueing);
-                                } else {
-                                    // Attack target found; check if it is a valid one
-                                    // (defaults to self in case it's not there, canceling the attack (it should be there tho))
-                                    let attack_target =
-                                        possible_attack_target.unwrap_or(unit.ent.id);
-                                    if attack_target == unit.ent.id {
-                                        // Cannot attack yourself!
-                                        continue;
+                            // Check wether we clicked on something attackable
+                            for unit in world.units.iter() {
+                                if unit.ent.get_rect().has_intersection(mouse_rect) {
+                                    possible_attack_target = Option::Some(unit.ent.id);
+                                    break;
+                                }
+                            }
+
+                            for unit in world.units.iter_mut() {
+                                if unit.selected() {
+                                    if possible_attack_target.is_none() {
+                                        // No attack target found; Issue move order
+                                        let move_order = Order::new(
+                                            OrderType::Move,
+                                            Vector2D::<f32>::new(
+                                                scaled_mouse_pos.x as f32,
+                                                scaled_mouse_pos.y as f32,
+                                            ),
+                                            None,
+                                        );
+                                        unit.add_order(move_order, !world.selection.queueing);
+                                    } else {
+                                        // Attack target found; check if it is a valid one
+                                        // (defaults to self in case it's not there, canceling the attack (it should be there tho))
+                                        let attack_target =
+                                            possible_attack_target.unwrap_or(unit.ent.id);
+                                        if attack_target == unit.ent.id {
+                                            // Cannot attack yourself!
+                                            continue;
+                                        }
+                                        let attack_order = Order::new(
+                                            OrderType::Attack,
+                                            Vector2D::<f32>::new(
+                                                scaled_mouse_pos.x as f32,
+                                                scaled_mouse_pos.y as f32,
+                                            ),
+                                            Option::Some(attack_target),
+                                        );
+                                        unit.add_order(attack_order, !world.selection.queueing);
                                     }
-                                    let attack_order = Order::new(
-                                        OrderType::Attack,
-                                        Vector2D::<f32>::new(x as f32, y as f32),
-                                        Option::Some(attack_target),
-                                    );
-                                    unit.add_order(attack_order, !world.selection.queueing);
                                 }
                             }
                         }
+                        MouseButton::X1 => (),
+                        MouseButton::X2 => (),
                     }
                 }
                 Event::MouseButtonUp {
                     mouse_btn, x, y, ..
                 } => {
-                    if mouse_btn.eq(&MouseButton::Left) {
-                        world.selection.close(Point::new(x, y), &mut world.units);
+                    let scaled_mouse_pos = camera.get_scaled_mouse_pos(x, y);
+                    match mouse_btn {
+                        MouseButton::Unknown => (),
+                        MouseButton::Left => {
+                            world.selection.close(scaled_mouse_pos, &mut world.units);
+                        }
+                        MouseButton::Middle => camera.release(),
+                        MouseButton::Right => (),
+                        MouseButton::X1 => (),
+                        MouseButton::X2 => (),
                     }
                 }
 
@@ -191,9 +228,28 @@ fn main() -> Result<(), String> {
 
         // DRAW
 
+        /*
+
+        */
         // Clear screen
         canvas.set_draw_color(clear_color);
-        canvas.fill_rect(screen_area).ok();
+        canvas.set_scale(camera.scale.x, camera.scale.y).ok();
+
+        canvas.set_viewport(Rect::new(
+            0 - MAP_PADDING as i32,
+            0 - MAP_PADDING as i32,
+            MAP_WIDTH + MAP_PADDING * 2,
+            MAP_HEIGHT + MAP_PADDING * 2,
+        ));
+
+        canvas.fill_rect(camera.get_scaled_screen_area()).ok();
+
+        canvas.set_viewport(Rect::new(
+            camera.position.x,
+            camera.position.y,
+            canvas.viewport().width(),
+            canvas.viewport().height(),
+        ));
 
         // Draw units
         for unit in world.units.iter() {
