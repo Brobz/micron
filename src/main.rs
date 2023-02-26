@@ -2,25 +2,25 @@
 // (for early rust && SDL2)
 
 // TODO:
-//          1. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
-//          2. Figure out proper combat (attack speed (maybe not?), attack_move)
+//          ??. Limit framerate somehow?
+//          ??. Fix zoom out jankiness (would like it for the zoom behaviour to be reversed when zooming out... why is this so hard)
+//          1. Add attack move order
+//          2. Figure out proper combat (attack speed (maybe not?))
+//          3. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
 //          ??. Add some logic to allow a unit to move while attacking (would need some sort of anchor target system; maintain target while in range, lose it when out of range)
-//          ??. Add stop order (S)
+//          ??. Add stop order (S) [stop order + attack order = nice combo (need to figure out atack move first)]
 //          ??. Add patrol order (R)
 
 mod consts;
 mod structs;
 
 use rand::Rng;
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::BlendMode;
 use structs::camera::Camera;
-use structs::ent::{Ent, EntID};
-use structs::order::{Order, OrderType};
+use structs::ent::Ent;
+use structs::input::Input;
 use structs::world_info::WorldInfo;
 use vector2d::Vector2D;
 
@@ -46,7 +46,6 @@ fn main() -> Result<(), String> {
     canvas.set_blend_mode(BlendMode::Blend);
     let clear_color = Color::RGB(64, 192, 255);
 
-    let mut running = true;
     let mut event_queue = sdl_context.event_pump().unwrap();
 
     let mut world = World::new();
@@ -67,128 +66,14 @@ fn main() -> Result<(), String> {
         world.units.push(Unit::new(new_ent));
     }
 
-    while running {
-        for event in event_queue.poll_iter() {
-            match event {
-                Event::Quit { .. } => {
-                    running = false;
-                }
+    loop {
+        //////////////////////// USER INPUT /////////////////////////
 
-                Event::MouseWheel { direction, y, .. } => {
-                    camera.zoom(direction, y);
-                }
-
-                Event::MouseMotion { x, y, .. } => {
-                    let scaled_mouse_pos = camera.get_scaled_mouse_pos(x, y);
-                    world.selection.tick(scaled_mouse_pos, &mut world.units);
-                    if camera.is_anchored() {
-                        let anchored_mouse_pos = camera.get_anchored_mouse_pos(x, y);
-                        camera.drag_to(anchored_mouse_pos);
-                    }
-                }
-
-                Event::MouseButtonDown {
-                    mouse_btn, x, y, ..
-                } => {
-                    // First, get scaled mouse position
-                    let scaled_mouse_pos = camera.get_scaled_mouse_pos(x, y);
-                    // This right click might issue an attack order, we will need to store its possible target
-                    let mut possible_attack_target: Option<EntID> = None;
-
-                    match mouse_btn {
-                        MouseButton::Unknown => (),
-                        MouseButton::Left => {
-                            // Left click
-                            // Open selection
-                            world.selection.open(scaled_mouse_pos, &mut world.units);
-                        }
-                        MouseButton::Middle => {
-                            camera.grab(&scaled_mouse_pos);
-                        }
-                        MouseButton::Right => {
-                            // Right click
-                            // Issue either a move or attack command
-                            let mouse_rect =
-                                Rect::new(scaled_mouse_pos.x, scaled_mouse_pos.y, 2, 2);
-
-                            // Check wether we clicked on something attackable
-                            for unit in world.units.iter() {
-                                if unit.ent.get_rect().has_intersection(mouse_rect) {
-                                    possible_attack_target = Option::Some(unit.ent.id);
-                                    break;
-                                }
-                            }
-
-                            for unit in world.units.iter_mut() {
-                                if unit.selected() {
-                                    if possible_attack_target.is_none() {
-                                        // No attack target found; Issue move order
-                                        let move_order = Order::new(
-                                            OrderType::Move,
-                                            Vector2D::<f32>::new(
-                                                scaled_mouse_pos.x as f32,
-                                                scaled_mouse_pos.y as f32,
-                                            ),
-                                            None,
-                                        );
-                                        unit.add_order(move_order, !world.selection.queueing);
-                                    } else {
-                                        // Attack target found; check if it is a valid one
-                                        // (defaults to self in case it's not there, canceling the attack (it should be there tho))
-                                        let attack_target =
-                                            possible_attack_target.unwrap_or(unit.ent.id);
-                                        if attack_target == unit.ent.id {
-                                            // Cannot attack yourself!
-                                            continue;
-                                        }
-                                        let attack_order = Order::new(
-                                            OrderType::Attack,
-                                            Vector2D::<f32>::new(
-                                                scaled_mouse_pos.x as f32,
-                                                scaled_mouse_pos.y as f32,
-                                            ),
-                                            Option::Some(attack_target),
-                                        );
-                                        unit.add_order(attack_order, !world.selection.queueing);
-                                    }
-                                }
-                            }
-                        }
-                        MouseButton::X1 => (),
-                        MouseButton::X2 => (),
-                    }
-                }
-                Event::MouseButtonUp {
-                    mouse_btn, x, y, ..
-                } => {
-                    let scaled_mouse_pos = camera.get_scaled_mouse_pos(x, y);
-                    match mouse_btn {
-                        MouseButton::Unknown => (),
-                        MouseButton::Left => {
-                            world.selection.close(scaled_mouse_pos, &mut world.units);
-                        }
-                        MouseButton::Middle => camera.release(),
-                        MouseButton::Right => (),
-                        MouseButton::X1 => (),
-                        MouseButton::X2 => (),
-                    }
-                }
-
-                Event::KeyDown { keycode, .. } => {
-                    if keycode.is_some() && keycode.unwrap() == Keycode::LShift {
-                        world.selection.shift_press();
-                    }
-                }
-                Event::KeyUp { keycode, .. } => {
-                    if keycode.is_some() && keycode.unwrap() == Keycode::LShift {
-                        world.selection.shift_release();
-                    }
-                }
-                _ => {}
-            }
+        if !Input::process_input(&mut event_queue, &mut camera, &mut world) {
+            break;
         }
 
-        // UPDATE
+        //////////////////////// UPDATE GAME STATE /////////////////////////
 
         // Tick orders
         for unit in world.units.iter_mut() {
@@ -226,15 +111,13 @@ fn main() -> Result<(), String> {
             world.units.remove(*i);
         }
 
-        // DRAW
+        //////////////////////// RENDER GAME STATE /////////////////////////
 
-        /*
-
-        */
         // Clear screen
         canvas.set_draw_color(clear_color);
         canvas.set_scale(camera.scale.x, camera.scale.y).ok();
 
+        // Set viewport to cover whole map
         canvas.set_viewport(Rect::new(
             0 - MAP_PADDING as i32,
             0 - MAP_PADDING as i32,
@@ -242,8 +125,10 @@ fn main() -> Result<(), String> {
             MAP_HEIGHT + MAP_PADDING * 2,
         ));
 
+        // Clear it
         canvas.fill_rect(camera.get_scaled_screen_area()).ok();
 
+        // Set viewport back to where the camera is
         canvas.set_viewport(Rect::new(
             camera.position.x,
             camera.position.y,

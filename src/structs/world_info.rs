@@ -13,9 +13,9 @@ use crate::consts::setup::{HEALTH_BAR_HEIGHT, HEALTH_BAR_WIDTH, HEALTH_BAR_Y_FLO
 use super::ent::{Ent, EntID};
 
 pub struct WorldInfo {
-    ent_max_hp: HashMap<EntID, u32>,             // Stores entity max hp,
-    ent_hp: HashMap<EntID, f32>,                 // Stores entity hp
-    ent_position: HashMap<EntID, Vector2D<f32>>, // Stores entity rect center    // Stores entity rect dimensions
+    ent_max_hp: HashMap<EntID, u32>, // Stores entity max hp,
+    ent_hp: HashMap<EntID, f32>,     // Stores entity hp
+    ent_rect_center: HashMap<EntID, Vector2D<f32>>, // Stores entity rect center
 }
 
 impl WorldInfo {
@@ -23,12 +23,12 @@ impl WorldInfo {
         WorldInfo {
             ent_max_hp: HashMap::new(),
             ent_hp: HashMap::new(),
-            ent_position: HashMap::new(),
+            ent_rect_center: HashMap::new(),
         }
     }
 
     pub fn _get_ent_poisition(&self, ent: &Ent) -> Option<Vector2D<f32>> {
-        return self.ent_position.get(&ent.id).copied();
+        return self.ent_rect_center.get(&ent.id).copied();
     }
 
     pub fn get_ent_hp(&self, ent: &Ent) -> Option<f32> {
@@ -36,16 +36,14 @@ impl WorldInfo {
     }
 
     pub fn get_ent_poisition_by_id(&self, ent_id: &EntID) -> Option<Vector2D<f32>> {
-        return self.ent_position.get(ent_id).copied();
+        return self.ent_rect_center.get(ent_id).copied();
     }
 
     pub fn update_ent(&mut self, ent: &Ent) {
         self.clear_ent_by_id(&ent.id);
-
-        let ent_rect = ent.get_rect();
-        let ent_rect_center = &ent_rect.center();
+        let ent_rect_center = ent.get_rect().center();
         self.ent_hp.insert(ent.id, ent.hp);
-        self.ent_position.insert(
+        self.ent_rect_center.insert(
             ent.id,
             Vector2D::new(ent_rect_center.x as f32, ent_rect_center.y as f32),
         );
@@ -66,11 +64,10 @@ impl WorldInfo {
     }
 
     pub fn add_ent(&mut self, ent: &Ent) {
-        let ent_rect = ent.get_rect();
-        let ent_rect_center = &ent_rect.center();
+        let ent_rect_center = ent.get_rect().center();
         self.ent_max_hp.insert(ent.id, ent.max_hp);
         self.ent_hp.insert(ent.id, ent.hp);
-        self.ent_position.insert(
+        self.ent_rect_center.insert(
             ent.id,
             Vector2D::new(ent_rect_center.x as f32, ent_rect_center.y as f32),
         );
@@ -80,8 +77,8 @@ impl WorldInfo {
         if self.ent_hp.contains_key(ent_id) {
             self.ent_hp.remove(ent_id);
         }
-        if self.ent_position.contains_key(ent_id) {
-            self.ent_position.remove(ent_id);
+        if self.ent_rect_center.contains_key(ent_id) {
+            self.ent_rect_center.remove(ent_id);
         }
     }
 
@@ -107,7 +104,7 @@ impl WorldInfo {
         for ent_id in self.ent_hp.keys() {
             let health = self.ent_hp.get(ent_id).unwrap();
             let max_health = self.ent_max_hp.get(ent_id).unwrap();
-            let pos = self.ent_position.get(ent_id).unwrap();
+            let pos = self.ent_rect_center.get(ent_id).unwrap();
             let empty_health_bar_rec = Rect::from_center(
                 Point::new(pos.x as i32, (pos.y - HEALTH_BAR_Y_FLOAT) as i32),
                 HEALTH_BAR_WIDTH as u32,

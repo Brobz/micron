@@ -3,7 +3,7 @@ use vector2d::Vector2D;
 
 use crate::consts::helper::CURRENT_ENT_ID;
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct EntID(pub u32);
+pub struct EntID(pub u64);
 
 pub struct Ent {
     pub id: EntID,
