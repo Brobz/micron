@@ -3,9 +3,11 @@
 
 // TODO:
 //          ??. Limit framerate somehow (try using sdl2_timing)?
-//          0. Change all pair data types on structs to Vector2D<f32>; Then convert back to point as needed for drawing (might be better then current way of things)
-//          1. Figure out proper combat (attack speed (maybe not?))
-//          2. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
+//          0. Add "team" property to Ent; Only allow player to issue orders to Player team ents, disallow combat between same team ents
+//          1. Have a GameObject Enum that can be either Unit or Structure; ent will be contained inside those; refactor all world.units calculations to use world.game_objects
+//          2. Change all pair data types on structs to Vector2D<f32>; Then convert back to point as needed for drawing (might be better then current way of things)
+//          3. Figure out proper combat (attack speed (maybe not? check next list #))
+//          4. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
 //          ??. Add some logic to allow a unit to move while attacking (would need some sort of anchor target system; maintain target while in range, lose it when out of range)
 //          ??. Add stop order (S) [stop order + attack order = nice combo (need to figure out atack move first)]
 //          ??. Add patrol order (R)
@@ -61,30 +63,11 @@ fn main() -> Result<(), String> {
     loop {
         //////////////////////// USER INPUT /////////////////////////
 
-        if !Input::process_input(&mut event_queue, &mut camera, &mut world) {
+        if !Input::process_input(&mut event_queue, &mut camera, &mut world, &mut world_info) {
             break;
         }
 
         //////////////////////// UPDATE GAME STATE /////////////////////////
-
-        // Tick orders
-        for unit in &mut world.units {
-            for order in &mut unit.orders {
-                if order.attack_target.is_none() {
-                    continue;
-                }
-                // For every attack order, update it's target position to the attacked entities position
-                let possible_target_position = world_info.get_ent_poisition_by_id(
-                    order
-                        .attack_target
-                        .expect(">> Could not find attack target id for order"),
-                );
-
-                if let Some(target_position) = possible_target_position {
-                    order.move_target = target_position;
-                }
-            }
-        }
 
         // Tick units
         // Also, store the index of any units that are to be removed after this tick
@@ -105,6 +88,28 @@ fn main() -> Result<(), String> {
         world
             .units
             .retain(|unit| !ent_cleanup_list.contains(&unit.ent.id));
+
+        // Tick orders
+        for unit in &mut world.units {
+            for order in &mut unit.orders {
+                if order.attack_target.ent_id.is_none() {
+                    continue;
+                }
+                let attack_target_id = order
+                    .attack_target
+                    .ent_id
+                    .expect(">> Could not find attack target id for order");
+                // For every attack order, update it's target position to the attacked entities position
+                let possible_target_position = world_info.get_ent_poisition_by_id(attack_target_id);
+
+                if let Some(target_position) = possible_target_position {
+                    order.move_target = target_position;
+                }
+
+                // Also update the attack target rect
+                order.attack_target.ent_rect = world_info.get_ent_rect_by_id(attack_target_id);
+            }
+        }
 
         //////////////////////// RENDER GAME STATE /////////////////////////
 
@@ -130,6 +135,11 @@ fn main() -> Result<(), String> {
             canvas.viewport().width(),
             canvas.viewport().height(),
         ));
+
+        // Draw unit orders
+        for unit in &world.units {
+            unit.draw_orders(&mut canvas);
+        }
 
         // Draw units
         for unit in &world.units {

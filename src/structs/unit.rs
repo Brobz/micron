@@ -7,15 +7,17 @@ use sdl2::rect::{Point, Rect};
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-use crate::consts::helper::{draw_waypoint, get_direction_from_to};
+use crate::consts::helper::{draw_selection_border, draw_waypoint, get_direction_from_to};
 use crate::consts::values::{
-    ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, RED_RGB, TIME_STEP,
+    ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, RED_RGB,
+    SELECTION_BORDER_COLOR, SELECTION_TARGET_BORDER_COLOR, TIME_STEP,
 };
 use crate::ent::Ent;
 
 use crate::order::{Order, OrderType};
 
 use super::ent::EntID;
+use super::order::AttackTarget;
 use super::world_info::WorldInfo;
 
 pub struct Unit {
@@ -23,7 +25,6 @@ pub struct Unit {
     pub speed: f32,
     pub damage: f32,
     pub range: f32,
-    selected: bool,
     is_attacking: bool,
     velocity: Vector2D<f32>,
     pub orders: Vec<Order>,
@@ -36,7 +37,6 @@ impl Unit {
             speed: BASE_UNIT_SPEED,
             damage: BASE_UNIT_DAMAGE,
             range: BASE_UNIT_RANGE,
-            selected: false,
             is_attacking: false,
             velocity: Vector2D::<f32>::new(0.0, 0.0),
             orders: Vec::<Order>::new(),
@@ -77,12 +77,14 @@ impl Unit {
             }
             OrderType::Attack => {
                 let possible_attack_target = &next_order.attack_target;
-                if possible_attack_target.is_none() {
+                if possible_attack_target.ent_id.is_none() {
                     return;
                 }
-                let attack_target = possible_attack_target
+                let attack_target_id = possible_attack_target
+                    .ent_id
                     .expect(">> Could not find attack target id from current order");
-                let possible_attack_target_pos = world_info.get_ent_poisition_by_id(attack_target);
+                let possible_attack_target_pos =
+                    world_info.get_ent_poisition_by_id(attack_target_id);
                 if possible_attack_target_pos.is_none() {
                     return;
                 }
@@ -94,7 +96,7 @@ impl Unit {
                     // Mark as attacking
                     self.is_attacking = true;
                     // Try to attack
-                    world_info.damage_ent(attack_target, self.damage * TIME_STEP);
+                    world_info.damage_ent(attack_target_id, self.damage * TIME_STEP);
                 } else {
                     // If target is not in range, move towards it
                     self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
@@ -104,7 +106,7 @@ impl Unit {
             }
             OrderType::AttackMove => {
                 // Check if any other unit is in range; if so, issue attack order to the closest one
-                let mut possible_closest_ent: Option<(EntID, Vector2D<f32>)> = None;
+                let mut possible_closest_ent: Option<(EntID, Rect)> = None;
                 let mut closest_ent_distance = self.range;
                 for (ent_id, ent_rect_center) in &world_info.ent_rect_center {
                     if *ent_id == self.ent.id {
@@ -123,15 +125,20 @@ impl Unit {
                         closest_ent_distance = distance;
                         possible_closest_ent = Some((
                             *ent_id,
-                            Vector2D::<f32>::new(ent_rect_center.x, ent_rect_center.y),
+                            world_info
+                                .get_ent_rect_by_id(*ent_id)
+                                .expect(">> Could not find entity rect by id"),
                         ));
                     }
                 }
                 if let Some((closest_ent_id, closest_ent_rect)) = possible_closest_ent {
                     let attack_order = Order::new(
                         OrderType::Attack,
-                        Vector2D::<f32>::new(closest_ent_rect.x, closest_ent_rect.y),
-                        Option::Some(closest_ent_id),
+                        Vector2D::<f32>::new(closest_ent_rect.x as f32, closest_ent_rect.y as f32),
+                        AttackTarget {
+                            ent_id: Some(closest_ent_id),
+                            ent_rect: Some(closest_ent_rect),
+                        },
                     );
                     // Issue attack order to closest in-range target
                     // Bump it so that it takes precedence over this attack move order
@@ -146,8 +153,46 @@ impl Unit {
     }
 
     pub fn draw(&self, canvas: &mut Canvas<Window>) {
+        // If dead, return early
+        if self.ent.hp <= 0.0 {
+            return {};
+        }
+        // If selected, draw selection border
+        if self.ent.selected() {
+            draw_selection_border(canvas, &self.ent.get_rect(), SELECTION_TARGET_BORDER_COLOR);
+        }
+
+        // Draw attack lines (if attacking)
+        if self.is_attacking {
+            let possible_attack_order = self.orders.get(0);
+            if let Some(attack_order) = possible_attack_order {
+                canvas.set_draw_color(RED_RGB);
+                canvas
+                    .draw_line(
+                        self.ent.get_rect().center(),
+                        Point::new(
+                            attack_order.move_target.x as i32,
+                            attack_order.move_target.y as i32,
+                        ),
+                    )
+                    .ok()
+                    .unwrap_or_default();
+            }
+        }
+        // Draw self (if alive)
+        canvas.set_draw_color(Color::RGB(50, 10, 50));
+        let rect: Rect = Rect::new(
+            self.ent.position.x as i32,
+            self.ent.position.y as i32,
+            self.ent.rect_size.x as u32,
+            self.ent.rect_size.y as u32,
+        );
+        canvas.fill_rect(rect).ok().unwrap_or_default();
+    }
+
+    pub fn draw_orders(&self, canvas: &mut Canvas<Window>) {
         // Draw order waypoints, if selected
-        if self.selected {
+        if self.ent.selected() {
             canvas.set_draw_color(Color::RGB(0, 150, 0));
             for (i, order) in self.orders.iter().enumerate() {
                 // Draw lines connecting order waypoints
@@ -184,57 +229,23 @@ impl Unit {
                 }
                 // Draw waypoint, if needed
                 match order.order_type {
-                    // In case of attack order, nothing for now
-                    OrderType::Attack => (),
+                    // In case of attack order, draw red selection border on attacked ent
+                    // (if target is still alive)
+                    OrderType::Attack => {
+                        if let Some(attack_target_rect) = &order.attack_target.ent_rect {
+                            draw_selection_border(
+                                canvas,
+                                attack_target_rect,
+                                SELECTION_BORDER_COLOR,
+                            )
+                        }
+                    }
                     // In case of move or attack move order, draw waypoint
                     OrderType::Move | OrderType::AttackMove => {
                         draw_waypoint(order, canvas);
                     }
                 }
             }
-        } else if self.is_attacking {
-            // Draw attack lines (if attacking)
-            let possible_attack_order = self.orders.get(0);
-            if let Some(attack_order) = possible_attack_order {
-                canvas.set_draw_color(RED_RGB);
-                canvas
-                    .draw_line(
-                        self.ent.get_rect().center(),
-                        Point::new(
-                            attack_order.move_target.x as i32,
-                            attack_order.move_target.y as i32,
-                        ),
-                    )
-                    .ok()
-                    .unwrap_or_default();
-            }
-        }
-
-        // If selected, draw selection border
-        if self.selected {
-            canvas.set_draw_color(Color::RGB(80, 200, 80));
-            let selection_border_rect: Rect = Rect::new(
-                (self.ent.position.x - 3.0) as i32,
-                (self.ent.position.y - 3.0) as i32,
-                (self.ent.rect_size.x + 6) as u32,
-                (self.ent.rect_size.y + 6) as u32,
-            );
-            canvas
-                .fill_rect(selection_border_rect)
-                .ok()
-                .unwrap_or_default();
-        }
-
-        // Draw self (if alive)
-        canvas.set_draw_color(Color::RGB(50, 10, 50));
-        let rect: Rect = Rect::new(
-            self.ent.position.x as i32,
-            self.ent.position.y as i32,
-            self.ent.rect_size.x as u32,
-            self.ent.rect_size.y as u32,
-        );
-        if self.ent.hp > 0.0 {
-            canvas.fill_rect(rect).ok().unwrap_or_default();
         }
     }
 
@@ -300,6 +311,7 @@ impl Unit {
                         if !world_info.has_ent_by_id(
                             next_order
                                 .attack_target
+                                .ent_id
                                 .expect(">> Could not find attack target id from current order"),
                         ) {
                             // Mark self as not attacking
@@ -333,18 +345,6 @@ impl Unit {
 
             self.clear_unwated_orders();
         }
-    }
-
-    pub const fn selected(&self) -> bool {
-        self.selected
-    }
-
-    pub fn select(&mut self) {
-        self.selected = true;
-    }
-
-    pub fn deselect(&mut self) {
-        self.selected = false;
     }
 
     // This method removes completed orders from the unit's order vector

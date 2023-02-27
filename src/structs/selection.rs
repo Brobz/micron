@@ -39,7 +39,12 @@ impl Selection {
         }
     }
     pub fn tick(&mut self, mouse_position: Point, units: &mut Vec<Unit>) {
-        if self.open {
+        if self.clearing {
+            for unit in units {
+                unit.ent.deselect();
+            }
+            self.clearing = false;
+        } else if self.open {
             let new_pos = find_selection_box_translation(mouse_position, self.origin);
             self.selection_box.set_x(new_pos.x);
             self.selection_box.set_y(new_pos.y);
@@ -54,25 +59,23 @@ impl Selection {
             for unit in units {
                 let possible_intersection = unit.ent.get_rect().intersection(self.selection_box);
                 if possible_intersection.is_some() {
-                    unit.select();
+                    // Select this unit
+                    unit.ent.select();
+                    // Flag that this selection grabbed at least one ent
                     at_least_one_selected = true;
                 } else {
                     units_to_deselect.push(unit);
                 }
             }
+            // If at least one ent was grabbed by selection, and not queueing, deselect current selection (if any)
             if at_least_one_selected {
                 for unit in units_to_deselect {
                     if !self.queueing {
-                        unit.deselect();
+                        unit.ent.deselect();
                     }
                 }
             }
             self.just_closed = false;
-        } else if self.clearing {
-            for unit in units {
-                unit.deselect();
-            }
-            self.clearing = false;
         } else {
             self.origin = mouse_position;
         }
@@ -94,13 +97,18 @@ impl Selection {
     }
 
     pub fn close(&mut self, mouse_position: Point, units: &mut Vec<Unit>) {
-        self.open = false;
-        self.just_closed = true;
+        if self.open {
+            self.open = false;
+            self.just_closed = true;
+        }
         self.tick(mouse_position, units);
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, units: &mut Vec<Unit>) {
+        self.open = false;
+        self.just_closed = false;
         self.clearing = true;
+        self.tick(Point::new(-1, -1), units);
     }
 
     pub fn shift_press(&mut self) {

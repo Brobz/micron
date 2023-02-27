@@ -1,11 +1,17 @@
 use sdl2::{
+    pixels::Color,
     rect::{Point, Rect},
-    render::Canvas,
+    render::{BlendMode, Canvas},
     video::Window,
 };
 use vector2d::Vector2D;
 
-use crate::structs::{ent::EntID, order::Order};
+use crate::{
+    consts::values::{MAX_SELECTION_BORDER_SIZE, MIN_SELECTION_BORDER_SIZE},
+    structs::{ent::EntID, order::Order},
+};
+
+use super::values::SELECTION_BORDER_RATIO;
 
 // Counter to guarantee a unique EntID
 pub static mut CURRENT_ENT_ID: EntID = EntID(0);
@@ -40,4 +46,30 @@ pub fn draw_waypoint(order: &Order, canvas: &mut Canvas<Window>) {
         5,
     );
     canvas.fill_rect(waypoint_rect).ok().unwrap_or_default();
+}
+
+// Renders selection border behind selected entities
+// Selection border will be calculated using the selection border ration and the entity rect dimensions
+// It also gets clamped to ensure it doesn't look off on entities that are too big or too smal
+pub fn draw_selection_border(canvas: &mut Canvas<Window>, ent_rect: &Rect, color: Color) {
+    canvas.set_blend_mode(BlendMode::Blend);
+    canvas.set_draw_color(color);
+    let selection_border_delta = if ent_rect.width() >= ent_rect.height() {
+        (ent_rect.width() as f32 * SELECTION_BORDER_RATIO)
+            .clamp(MIN_SELECTION_BORDER_SIZE, MAX_SELECTION_BORDER_SIZE)
+    } else {
+        (ent_rect.height() as f32 * SELECTION_BORDER_RATIO)
+            .clamp(MIN_SELECTION_BORDER_SIZE, MAX_SELECTION_BORDER_SIZE)
+    };
+    let selection_border_rect: Rect = Rect::new(
+        (ent_rect.x as f32 - (selection_border_delta / 2.0)) as i32,
+        (ent_rect.y as f32 - (selection_border_delta / 2.0)) as i32,
+        ent_rect.width() + selection_border_delta as u32,
+        ent_rect.height() + selection_border_delta as u32,
+    );
+    canvas
+        .fill_rect(selection_border_rect)
+        .ok()
+        .unwrap_or_default();
+    canvas.set_blend_mode(BlendMode::None);
 }

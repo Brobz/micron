@@ -42,6 +42,10 @@ impl WorldInfo {
         return self.ent_rect_center.get(&ent_id).copied();
     }
 
+    pub fn get_ent_rect_by_id(&self, ent_id: EntID) -> Option<Rect> {
+        return self.ent_rect.get(&ent_id).copied();
+    }
+
     pub fn update_ent(&mut self, ent: &Ent) {
         self.clear_ent_by_id(ent.id);
         let ent_rect = ent.get_rect();

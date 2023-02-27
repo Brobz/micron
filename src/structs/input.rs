@@ -4,9 +4,10 @@ use vector2d::Vector2D;
 use super::{
     camera::Camera,
     ent::EntID,
-    order::{Order, OrderType},
+    order::{AttackTarget, Order, OrderType},
     selection::MouseCommand,
     world::World,
+    world_info::WorldInfo,
 };
 
 // TODO: CLEANUP THIS FILE
@@ -18,6 +19,7 @@ impl Input {
         event_queue: &mut EventPump,
         camera: &mut Camera,
         world: &mut World,
+        world_info: &mut WorldInfo,
     ) -> bool {
         for event in event_queue.poll_iter() {
             match event {
@@ -36,7 +38,7 @@ impl Input {
                 Event::MouseButtonDown {
                     mouse_btn, x, y, ..
                 } => {
-                    Self::process_mouse_button_down(mouse_btn, x, y, camera, world);
+                    Self::process_mouse_button_down(mouse_btn, x, y, camera, world, world_info);
                 }
                 Event::MouseButtonUp {
                     mouse_btn, x, y, ..
@@ -52,7 +54,7 @@ impl Input {
                 Event::KeyDown {
                     keycode: Some(Keycode::Escape),
                     ..
-                } => world.selection.clear(),
+                } => world.selection.clear(&mut world.units),
 
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
@@ -95,6 +97,7 @@ impl Input {
         y: i32,
         camera: &mut Camera,
         world: &mut World,
+        world_info: &mut WorldInfo,
     ) {
         // First, update mouse position
         camera.update_mouse_rect(Point::new(x, y));
@@ -125,7 +128,7 @@ impl Input {
                     }
                     MouseCommand::Attack => {
                         for unit in &mut world.units {
-                            if unit.selected() {
+                            if unit.ent.selected() {
                                 if possible_attack_target.is_none() {
                                     // No attack target found; Issue attack move order
                                     let attack_move_order = Order::new(
@@ -134,15 +137,18 @@ impl Input {
                                             scaled_mouse_pos.x as f32,
                                             scaled_mouse_pos.y as f32,
                                         ),
-                                        None,
+                                        AttackTarget {
+                                            ent_id: None,
+                                            ent_rect: None,
+                                        },
                                     );
                                     unit.add_order(attack_move_order, !world.selection.queueing);
                                 } else {
                                     // Attack target found; check if it is a valid one
                                     // (defaults to self in case it's not there, canceling the attack (it should be there tho))
-                                    let attack_target =
+                                    let attack_target_id =
                                         possible_attack_target.unwrap_or(unit.ent.id);
-                                    if attack_target == unit.ent.id {
+                                    if attack_target_id == unit.ent.id {
                                         // Cannot attack yourself!
                                         continue;
                                     }
@@ -152,7 +158,11 @@ impl Input {
                                             scaled_mouse_pos.x as f32,
                                             scaled_mouse_pos.y as f32,
                                         ),
-                                        Option::Some(attack_target),
+                                        AttackTarget {
+                                            ent_id: Some(attack_target_id),
+                                            ent_rect: world_info
+                                                .get_ent_rect_by_id(attack_target_id),
+                                        },
                                     );
                                     unit.add_order(attack_order, !world.selection.queueing);
                                 }
@@ -183,7 +193,7 @@ impl Input {
                 }
 
                 for unit in &mut world.units {
-                    if unit.selected() {
+                    if unit.ent.selected() {
                         if possible_attack_target.is_none() {
                             // No attack target found; Issue move order
                             let move_order = Order::new(
@@ -192,14 +202,17 @@ impl Input {
                                     scaled_mouse_pos.x as f32,
                                     scaled_mouse_pos.y as f32,
                                 ),
-                                None,
+                                AttackTarget {
+                                    ent_id: None,
+                                    ent_rect: None,
+                                },
                             );
                             unit.add_order(move_order, !world.selection.queueing);
                         } else {
                             // Attack target found; check if it is a valid one
                             // (defaults to self in case it's not there, canceling the attack (it should be there tho))
-                            let attack_target = possible_attack_target.unwrap_or(unit.ent.id);
-                            if attack_target == unit.ent.id {
+                            let attack_target_id = possible_attack_target.unwrap_or(unit.ent.id);
+                            if attack_target_id == unit.ent.id {
                                 // Cannot attack yourself!
                                 continue;
                             }
@@ -209,7 +222,10 @@ impl Input {
                                     scaled_mouse_pos.x as f32,
                                     scaled_mouse_pos.y as f32,
                                 ),
-                                Option::Some(attack_target),
+                                AttackTarget {
+                                    ent_id: Option::Some(attack_target_id),
+                                    ent_rect: world_info.get_ent_rect_by_id(attack_target_id),
+                                },
                             );
                             unit.add_order(attack_order, !world.selection.queueing);
                         }

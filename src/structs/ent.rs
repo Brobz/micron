@@ -13,6 +13,7 @@ pub struct Ent {
     pub radius: i32,
     pub max_hp: u32,
     pub hp: f32,
+    selected: bool,
 }
 
 impl Ent {
@@ -27,6 +28,7 @@ impl Ent {
             radius: -1,
             max_hp,
             hp: max_hp as f32,
+            selected: false,
         }
     }
 
@@ -37,5 +39,17 @@ impl Ent {
             self.rect_size.x as u32,
             self.rect_size.y as u32,
         )
+    }
+
+    pub const fn selected(&self) -> bool {
+        self.selected
+    }
+
+    pub fn select(&mut self) {
+        self.selected = true;
+    }
+
+    pub fn deselect(&mut self) {
+        self.selected = false;
     }
 }
