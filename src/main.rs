@@ -19,6 +19,7 @@ use consts::values::{MAP_HEIGHT, MAP_PADDING, MAP_WIDTH, SCREEN_HEIGHT, SCREEN_W
 use sdl2::rect::Rect;
 use structs::camera::Camera;
 
+use structs::ent::EntID;
 use structs::input::Input;
 use structs::world_info::WorldInfo;
 
@@ -83,8 +84,8 @@ fn main() -> Result<(), String> {
 
         // Tick units
         // Also, store the index of any units that are to be removed after this tick
-        let mut ent_cleanup_list: Vec<usize> = Vec::<usize>::new();
-        for (i, unit) in world.units.iter_mut().enumerate() {
+        let mut ent_cleanup_list: Vec<EntID> = Vec::<EntID>::new();
+        for unit in world.units.iter_mut() {
             // Check if this unit's entity still exists in the world
             if world_info.has_ent(&unit.ent) {
                 // If so, tick and update world_info
@@ -92,14 +93,14 @@ fn main() -> Result<(), String> {
                 world_info.update_ent(&unit.ent);
             } else {
                 // If not, add to cleanup list
-                ent_cleanup_list.push(i);
+                ent_cleanup_list.push(unit.ent.id);
             }
         }
 
         // Remove dead units
-        for i in ent_cleanup_list.iter() {
-            world.units.remove(*i);
-        }
+        world
+            .units
+            .retain(|unit| !ent_cleanup_list.contains(&unit.ent.id));
 
         //////////////////////// RENDER GAME STATE /////////////////////////
 

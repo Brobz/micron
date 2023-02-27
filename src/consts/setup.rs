@@ -8,7 +8,7 @@ use super::values::{MAP_HEIGHT, MAP_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 // Debug method; spawns some ents for testing
 pub fn spawn_debug_ents(rng: &mut ThreadRng, world: &mut World, world_info: &mut WorldInfo) {
-    for _ in 1..10 {
+    for _ in 1..500 {
         let new_ent = Ent::new(
             100,
             Vector2D::<f32>::new(
