@@ -15,10 +15,9 @@
 mod consts;
 mod structs;
 
+use consts::values::SCREEN_BACKGROUND_COLOR;
 use consts::values::{MAP_HEIGHT, MAP_PADDING, MAP_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH};
-use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::BlendMode;
 use structs::camera::Camera;
 
 use structs::input::Input;
@@ -48,9 +47,6 @@ fn main() -> Result<(), String> {
         .present_vsync()
         .build()
         .unwrap();
-
-    canvas.set_blend_mode(BlendMode::Blend);
-    let clear_color = Color::RGB(64, 192, 255);
 
     let mut event_queue = sdl_context.event_pump().unwrap();
 
@@ -109,7 +105,7 @@ fn main() -> Result<(), String> {
         //////////////////////// RENDER GAME STATE /////////////////////////
 
         // Clear screen
-        canvas.set_draw_color(clear_color);
+        canvas.set_draw_color(SCREEN_BACKGROUND_COLOR);
         canvas.set_scale(camera.scale.x, camera.scale.y).ok();
 
         // Set viewport to cover whole map

@@ -6,6 +6,7 @@ use super::ent::EntID;
 pub enum OrderType {
     Move,
     Attack,
+    AttackMove,
 }
 
 pub struct Order {

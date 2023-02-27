@@ -5,6 +5,7 @@ use super::{
     camera::Camera,
     ent::EntID,
     order::{Order, OrderType},
+    selection::MouseCommand,
     world::World,
 };
 
@@ -43,16 +44,26 @@ impl Input {
                     Self::process_mouse_button_up(mouse_btn, x, y, camera, world);
                 }
 
-                Event::KeyDown { keycode, .. } => {
-                    if keycode.is_some() && keycode.unwrap() == Keycode::LShift {
-                        world.selection.shift_press();
-                    }
-                }
-                Event::KeyUp { keycode, .. } => {
-                    if keycode.is_some() && keycode.unwrap() == Keycode::LShift {
-                        world.selection.shift_release();
-                    }
-                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::LShift),
+                    ..
+                } => world.selection.shift_press(),
+
+                Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => world.selection.clear(),
+
+                Event::KeyDown {
+                    keycode: Some(Keycode::A),
+                    ..
+                } => world.selection.engange_command(MouseCommand::Attack),
+
+                Event::KeyUp {
+                    keycode: Some(Keycode::LShift),
+                    ..
+                } => world.selection.shift_release(),
+
                 _ => {}
             }
         }
@@ -70,9 +81,10 @@ impl Input {
         let scaled_mouse_pos = camera.get_scaled_mouse_pos();
         match mouse_btn {
             MouseButton::Unknown => (),
-            MouseButton::Left => {
-                world.selection.close(scaled_mouse_pos, &mut world.units);
-            }
+            MouseButton::Left => match world.selection.left_click_command {
+                MouseCommand::Select => world.selection.close(scaled_mouse_pos, &mut world.units),
+                MouseCommand::Attack => world.selection.release_command(),
+            },
             MouseButton::Middle => camera.release(),
             MouseButton::Right => (),
             MouseButton::X1 => (),
@@ -94,12 +106,64 @@ impl Input {
         // This right click might issue an attack order, we will need to store its possible target
         let mut possible_attack_target: Option<EntID> = None;
 
+        // Check wether we clicked on something attackable
+        for unit in world.units.iter() {
+            if unit
+                .ent
+                .get_rect()
+                .has_intersection(camera.get_scaled_mouse_rect())
+            {
+                possible_attack_target = Option::Some(unit.ent.id);
+                break;
+            }
+        }
+
         match mouse_btn {
             MouseButton::Unknown => (),
             MouseButton::Left => {
                 // Left click
-                // Open selection
-                world.selection.open(scaled_mouse_pos, &mut world.units);
+                match world.selection.left_click_command {
+                    MouseCommand::Select => {
+                        // No command engaged, just open selection
+                        world.selection.open(scaled_mouse_pos, &mut world.units)
+                    }
+                    MouseCommand::Attack => {
+                        for unit in world.units.iter_mut() {
+                            if unit.selected() {
+                                if possible_attack_target.is_none() {
+                                    // No attack target found; Issue attack move order
+                                    let attack_move_order = Order::new(
+                                        OrderType::AttackMove,
+                                        Vector2D::<f32>::new(
+                                            scaled_mouse_pos.x as f32,
+                                            scaled_mouse_pos.y as f32,
+                                        ),
+                                        None,
+                                    );
+                                    unit.add_order(attack_move_order, !world.selection.queueing);
+                                } else {
+                                    // Attack target found; check if it is a valid one
+                                    // (defaults to self in case it's not there, canceling the attack (it should be there tho))
+                                    let attack_target =
+                                        possible_attack_target.unwrap_or(unit.ent.id);
+                                    if attack_target == unit.ent.id {
+                                        // Cannot attack yourself!
+                                        continue;
+                                    }
+                                    let attack_order = Order::new(
+                                        OrderType::Attack,
+                                        Vector2D::<f32>::new(
+                                            scaled_mouse_pos.x as f32,
+                                            scaled_mouse_pos.y as f32,
+                                        ),
+                                        Option::Some(attack_target),
+                                    );
+                                    unit.add_order(attack_order, !world.selection.queueing);
+                                }
+                            }
+                        }
+                    }
+                }
             }
             MouseButton::Middle => {
                 camera.grab(&scaled_mouse_pos);
@@ -107,6 +171,9 @@ impl Input {
             MouseButton::Right => {
                 // Right click
                 // Issue either a move or attack command
+
+                // Release left click command (if any)
+                world.selection.release_command();
                 // Check wether we clicked on something attackable
                 for unit in world.units.iter() {
                     if unit

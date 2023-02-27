@@ -16,7 +16,8 @@ use super::ent::{Ent, EntID};
 pub struct WorldInfo {
     ent_max_hp: HashMap<EntID, u32>, // Stores entity max hp,
     ent_hp: HashMap<EntID, f32>,     // Stores entity hp
-    ent_rect_center: HashMap<EntID, Vector2D<f32>>, // Stores entity rect center
+    pub ent_rect_center: HashMap<EntID, Vector2D<f32>>, // Stores entity rect center
+    ent_rect: HashMap<EntID, Rect>,  // Stores entity rect
 }
 
 impl WorldInfo {
@@ -25,6 +26,7 @@ impl WorldInfo {
             ent_max_hp: HashMap::new(),
             ent_hp: HashMap::new(),
             ent_rect_center: HashMap::new(),
+            ent_rect: HashMap::new(),
         }
     }
 
@@ -42,12 +44,14 @@ impl WorldInfo {
 
     pub fn update_ent(&mut self, ent: &Ent) {
         self.clear_ent_by_id(&ent.id);
-        let ent_rect_center = ent.get_rect().center();
+        let ent_rect = ent.get_rect();
+        let ent_rect_center = ent_rect.center();
         self.ent_hp.insert(ent.id, ent.hp);
         self.ent_rect_center.insert(
             ent.id,
             Vector2D::new(ent_rect_center.x as f32, ent_rect_center.y as f32),
         );
+        self.ent_rect.insert(ent.id, ent_rect);
     }
 
     pub fn damage_ent(&mut self, ent_id: &EntID, dmg: f32) {
@@ -65,13 +69,15 @@ impl WorldInfo {
     }
 
     pub fn add_ent(&mut self, ent: &Ent) {
-        let ent_rect_center = ent.get_rect().center();
+        let ent_rect = ent.get_rect();
+        let ent_rect_center = ent_rect.center();
         self.ent_max_hp.insert(ent.id, ent.max_hp);
         self.ent_hp.insert(ent.id, ent.hp);
         self.ent_rect_center.insert(
             ent.id,
             Vector2D::new(ent_rect_center.x as f32, ent_rect_center.y as f32),
         );
+        self.ent_rect.insert(ent.id, ent_rect);
     }
 
     pub fn clear_ent_by_id(&mut self, ent_id: &EntID) {
@@ -80,6 +86,9 @@ impl WorldInfo {
         }
         if self.ent_rect_center.contains_key(ent_id) {
             self.ent_rect_center.remove(ent_id);
+        }
+        if self.ent_rect.contains_key(ent_id) {
+            self.ent_rect.remove(ent_id);
         }
     }
 

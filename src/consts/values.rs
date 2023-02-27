@@ -33,6 +33,9 @@ pub const ATTACKER_SPEED_PENALTY: f32 = 0.35; // A scalar that gets applied to u
 // Defines the amount of time that should elapse between each physics step.
 pub const TIME_STEP: f32 = 1.0 / 60.0;
 
+// Color to clear the screen with
+pub const SCREEN_BACKGROUND_COLOR: Color = Color::RGB(64, 192, 255);
+
 // Color of the selection box, with alpha
 pub const SELECTION_BOX_COLOR: Color = Color::RGBA(50, 150, 25, 100);
 

@@ -52,9 +52,11 @@ impl Unit {
         // Execute next order
         self.update_orders(world_info);
         let (next_order_option, next_order_direction_option) = self.execute_next_order();
+
         if next_order_option.is_none() {
             return;
         }
+
         let next_order = next_order_option.unwrap();
         match next_order.order_type {
             OrderType::Move => {
@@ -86,6 +88,34 @@ impl Unit {
                     self.is_attacking = false;
                 }
             }
+            OrderType::AttackMove => {
+                self.is_attacking = false;
+                self.set_velocity(next_order_direction_option.unwrap());
+                // Check if any other unit is in range; if so, issue attack order to it
+                for (ent_id, ent_rect_center) in &world_info.ent_rect_center {
+                    if *ent_id != self.ent.id
+                        && (self.ent.position
+                            - Vector2D::<f32>::new(
+                                ent_rect_center.x,
+                                ent_rect_center.y,
+                            ))
+                        .length()
+                            <= self.range
+                    {
+                        let attack_order = Order::new(
+                            OrderType::Attack,
+                            Vector2D::<f32>::new(
+                                ent_rect_center.x,
+                                ent_rect_center.y,
+                            ),
+                            Option::Some(*ent_id),
+                        );
+                        // Issue attack order to target that is in range
+                        // Bump it so that it takes precedence over this attack move order
+                        self.bump_order(attack_order);
+                    }
+                }
+            }
         }
     }
 
@@ -98,7 +128,8 @@ impl Unit {
                 // Set colors according to order type
                 match order.order_type {
                     OrderType::Move => canvas.set_draw_color(Color::RGB(0, 150, 0)),
-                    OrderType::Attack => canvas.set_draw_color(Color::RGB(150, 0, 0)),
+                    OrderType::Attack => canvas.set_draw_color(Color::RGB(100, 0, 0)),
+                    OrderType::AttackMove => canvas.set_draw_color(Color::RGB(100, 0, 0)),
                 }
                 match i {
                     // If this is the next order, draw  a line from unit to waypoint
@@ -139,6 +170,15 @@ impl Unit {
                     }
                     // In case of attack order, nothing for now
                     OrderType::Attack => (),
+                    // In case of move attack move order, draw waypoint
+                    OrderType::AttackMove => {
+                        let waypoint_rect: Rect = Rect::from_center(
+                            Point::new(order.move_target.x as i32, order.move_target.y as i32),
+                            5,
+                            5,
+                        );
+                        canvas.fill_rect(waypoint_rect).ok().unwrap_or_default();
+                    }
                 }
             }
         } else if self.is_attacking {
@@ -213,6 +253,12 @@ impl Unit {
         self.orders.push(_order);
     }
 
+    pub fn bump_order(&mut self, _order: Order) {
+        let mut new_orders = vec![_order];
+        new_orders.append(&mut self.orders);
+        self.orders = new_orders;
+    }
+
     // If there is an order in the vector, grab it, mark it as executed, and process it's effects
     pub fn execute_next_order(&mut self) -> (Option<&mut Order>, Option<Vector2D<f32>>) {
         if !self.orders.is_empty() {
@@ -259,6 +305,21 @@ impl Unit {
                             // Mark self as not attacking
                             self.is_attacking = false;
 
+                            // Mark this order as completed
+                            next_order.complete();
+
+                            // The unit has moved to it's target successfully
+                            // Clear it's velocity so it can rest
+                            self.clear_velocity();
+                        }
+                    }
+                    OrderType::AttackMove => {
+                        let rect_center = self.ent.get_rect().center();
+                        if (next_order.move_target
+                            - Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32))
+                        .length()
+                            <= 3.0
+                        {
                             // Mark this order as completed
                             next_order.complete();
 
