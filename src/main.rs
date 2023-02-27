@@ -5,9 +5,8 @@
 //          ??. Limit framerate somehow (try using sdl2_timing)?
 //          ??. Fix zoom out jankiness (would like it for the zoom behaviour to be reversed when zooming out... why is this so hard)
 //          0. Change all pair data types on structs to Vector2D<f32>; Then convert back to point as needed for drawing (might be better then current way of things)
-//          1. Add attack move order
-//          2. Figure out proper combat (attack speed (maybe not?))
-//          3. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
+//          1. Figure out proper combat (attack speed (maybe not?))
+//          2. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
 //          ??. Add some logic to allow a unit to move while attacking (would need some sort of anchor target system; maintain target while in range, lose it when out of range)
 //          ??. Add stop order (S) [stop order + attack order = nice combo (need to figure out atack move first)]
 //          ??. Add patrol order (R)

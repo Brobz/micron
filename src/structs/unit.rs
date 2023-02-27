@@ -15,6 +15,7 @@ use crate::ent::Ent;
 
 use crate::order::{Order, OrderType};
 
+use super::ent::EntID;
 use super::world_info::WorldInfo;
 
 pub struct Unit {
@@ -91,29 +92,39 @@ impl Unit {
             OrderType::AttackMove => {
                 self.is_attacking = false;
                 self.set_velocity(next_order_direction_option.unwrap());
-                // Check if any other unit is in range; if so, issue attack order to it
+                // Check if any other unit is in range; if so, issue attack order to the closest one
+                let mut possible_closest_ent: Option<(EntID, Vector2D<f32>)> = None;
+                let mut closest_ent_distance = self.range;
                 for (ent_id, ent_rect_center) in &world_info.ent_rect_center {
-                    if *ent_id != self.ent.id
-                        && (self.ent.position
-                            - Vector2D::<f32>::new(
-                                ent_rect_center.x,
-                                ent_rect_center.y,
-                            ))
-                        .length()
-                            <= self.range
-                    {
-                        let attack_order = Order::new(
-                            OrderType::Attack,
-                            Vector2D::<f32>::new(
-                                ent_rect_center.x,
-                                ent_rect_center.y,
-                            ),
-                            Option::Some(*ent_id),
-                        );
-                        // Issue attack order to target that is in range
-                        // Bump it so that it takes precedence over this attack move order
-                        self.bump_order(attack_order);
+                    if *ent_id == self.ent.id {
+                        // Cannot attack self; return early
+                        continue;
                     }
+                    let distance = (self.ent.position
+                        - Vector2D::<f32>::new(ent_rect_center.x, ent_rect_center.y))
+                    .length();
+                    if distance > self.range {
+                        // Too far away to attack; return early
+                        continue;
+                    }
+                    // Only attack the closest possible target
+                    if distance < closest_ent_distance {
+                        closest_ent_distance = distance;
+                        possible_closest_ent = Some((
+                            *ent_id,
+                            Vector2D::<f32>::new(ent_rect_center.x, ent_rect_center.y),
+                        ));
+                    }
+                }
+                if let Some((closest_ent_id, closest_ent_rect)) = possible_closest_ent {
+                    let attack_order = Order::new(
+                        OrderType::Attack,
+                        Vector2D::<f32>::new(closest_ent_rect.x, closest_ent_rect.y),
+                        Option::Some(closest_ent_id),
+                    );
+                    // Issue attack order to target that is in range
+                    // Bump it so that it takes precedence over this attack move order
+                    self.bump_order(attack_order);
                 }
             }
         }
