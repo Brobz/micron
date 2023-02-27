@@ -122,7 +122,7 @@ impl Unit {
                         Vector2D::<f32>::new(closest_ent_rect.x, closest_ent_rect.y),
                         Option::Some(closest_ent_id),
                     );
-                    // Issue attack order to target that is in range
+                    // Issue attack order to closest in-range target
                     // Bump it so that it takes precedence over this attack move order
                     self.bump_order(attack_order);
                 }
