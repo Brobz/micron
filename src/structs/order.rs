@@ -2,7 +2,7 @@ use vector2d::Vector2D;
 
 use super::ent::EntID;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum OrderType {
     Move,
     Attack,
@@ -18,12 +18,12 @@ pub struct Order {
 }
 
 impl Order {
-    pub fn new(
+    pub const fn new(
         order_type: OrderType,
         move_target: Vector2D<f32>,
         attack_target: Option<EntID>,
-    ) -> Order {
-        Order {
+    ) -> Self {
+        Self {
             order_type,
             executed: false,
             completed: false,

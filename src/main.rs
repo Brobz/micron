@@ -3,13 +3,13 @@
 
 // TODO:
 //          ??. Limit framerate somehow (try using sdl2_timing)?
-//          ??. Fix zoom out jankiness (would like it for the zoom behaviour to be reversed when zooming out... why is this so hard)
 //          0. Change all pair data types on structs to Vector2D<f32>; Then convert back to point as needed for drawing (might be better then current way of things)
 //          1. Figure out proper combat (attack speed (maybe not?))
 //          2. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
 //          ??. Add some logic to allow a unit to move while attacking (would need some sort of anchor target system; maintain target while in range, lose it when out of range)
 //          ??. Add stop order (S) [stop order + attack order = nice combo (need to figure out atack move first)]
 //          ??. Add patrol order (R)
+//          ??. Fix zoom out jankiness (would like it for the zoom behaviour to be reversed when zooming out... why is this so hard)
 
 mod consts;
 mod structs;
@@ -39,23 +39,24 @@ fn main() -> Result<(), String> {
         .position_centered()
         .opengl()
         .build()
-        .unwrap();
+        .expect(">> Could not load window");
 
     let mut canvas = window
         .into_canvas()
         .accelerated()
         .present_vsync()
         .build()
-        .unwrap();
+        .expect(">> Could not build canvas from window");
 
-    let mut event_queue = sdl_context.event_pump().unwrap();
+    let mut event_queue = sdl_context
+        .event_pump()
+        .expect(">> Coult not instantiate event_queue");
 
     let mut world = World::new();
     let mut world_info = WorldInfo::new();
     let mut camera = Camera::new();
-    let mut rng = rand::thread_rng();
 
-    spawn_debug_ents(&mut rng, &mut world, &mut world_info);
+    spawn_debug_ents(&mut world, &mut world_info);
 
     loop {
         //////////////////////// USER INPUT /////////////////////////
@@ -67,14 +68,17 @@ fn main() -> Result<(), String> {
         //////////////////////// UPDATE GAME STATE /////////////////////////
 
         // Tick orders
-        for unit in world.units.iter_mut() {
-            for order in unit.orders.iter_mut() {
+        for unit in &mut world.units {
+            for order in &mut unit.orders {
                 if order.attack_target.is_none() {
                     continue;
                 }
                 // For every attack order, update it's target position to the attacked entities position
-                let possible_target_position =
-                    world_info.get_ent_poisition_by_id(&order.attack_target.unwrap());
+                let possible_target_position = world_info.get_ent_poisition_by_id(
+                    order
+                        .attack_target
+                        .expect(">> Could not find attack target id for order"),
+                );
 
                 if let Some(target_position) = possible_target_position {
                     order.move_target = target_position;
@@ -85,7 +89,7 @@ fn main() -> Result<(), String> {
         // Tick units
         // Also, store the index of any units that are to be removed after this tick
         let mut ent_cleanup_list: Vec<EntID> = Vec::<EntID>::new();
-        for unit in world.units.iter_mut() {
+        for unit in &mut world.units {
             // Check if this unit's entity still exists in the world
             if world_info.has_ent(&unit.ent) {
                 // If so, tick and update world_info
@@ -128,7 +132,7 @@ fn main() -> Result<(), String> {
         ));
 
         // Draw units
-        for unit in world.units.iter() {
+        for unit in &world.units {
             unit.draw(&mut canvas);
         }
 

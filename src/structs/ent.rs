@@ -16,11 +16,11 @@ pub struct Ent {
 }
 
 impl Ent {
-    pub fn new(max_hp: u32, position: Vector2D<f32>, rect_size: Point) -> Ent {
+    pub fn new(max_hp: u32, position: Vector2D<f32>, rect_size: Point) -> Self {
         unsafe {
             CURRENT_ENT_ID.0 += 1;
         }
-        Ent {
+        Self {
             id: unsafe { CURRENT_ENT_ID },
             position,
             rect_size,

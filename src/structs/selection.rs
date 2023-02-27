@@ -17,17 +17,17 @@ pub enum MouseCommand {
 pub struct Selection {
     pub open: bool,
     pub just_closed: bool,
+    pub queueing: bool,
     pub clearing: bool,
     pub origin: Point,
     pub center: Point,
     pub selection_box: Rect,
-    pub queueing: bool,
     pub left_click_command: MouseCommand,
 }
 
 impl Selection {
-    pub fn new() -> Selection {
-        Selection {
+    pub fn new() -> Self {
+        Self {
             open: false,
             just_closed: false,
             clearing: false,

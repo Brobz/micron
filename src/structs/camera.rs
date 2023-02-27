@@ -18,8 +18,8 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new() -> Camera {
-        Camera {
+    pub fn new() -> Self {
+        Self {
             position: Vector2D::<i32>::new(MAP_WIDTH as i32 / -2, MAP_HEIGHT as i32 / -2),
             scale: Vector2D::<f32>::new(1.0, 1.0),
             mouse_rect: Rect::new(-1, -1, 2, 2),
@@ -40,7 +40,8 @@ impl Camera {
         }
         self.clamp_camera_to_map_bounds();
     }
-    pub fn is_anchored(&self) -> bool {
+
+    pub const fn is_anchored(&self) -> bool {
         self.is_anchored
     }
 
@@ -133,8 +134,10 @@ impl Camera {
         // If we have a zoom amount or 0, or are out of bounds to zoom further / less, return early
         match zoom_amount {
             _ if zoom_amount == 0.0 => return {},
-            _ if zoom_amount > 0.0 && self.scale.x == MAX_ZOOM_SCALE => return {},
-            _ if zoom_amount < 0.0 && self.scale.x == MIN_ZOOM_SCALE as f32 => return {},
+            _ if zoom_amount > 0.0 && (self.scale.x - MAX_ZOOM_SCALE).abs() < 0.01 => return {},
+            _ if zoom_amount < 0.0 && (self.scale.x - MIN_ZOOM_SCALE as f32).abs() < 0.01 => {
+                return {}
+            }
             _ => (),
         }
 

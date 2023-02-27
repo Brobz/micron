@@ -7,7 +7,7 @@ use sdl2::rect::{Point, Rect};
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-use crate::consts::helper::get_direction_from_to;
+use crate::consts::helper::{draw_waypoint, get_direction_from_to};
 use crate::consts::values::{
     ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, RED_RGB, TIME_STEP,
 };
@@ -30,8 +30,8 @@ pub struct Unit {
 }
 
 impl Unit {
-    pub fn new(ent: Ent) -> Unit {
-        Unit {
+    pub fn new(ent: Ent) -> Self {
+        Self {
             ent,
             speed: BASE_UNIT_SPEED,
             damage: BASE_UNIT_DAMAGE,
@@ -45,7 +45,13 @@ impl Unit {
 
     pub fn tick(&mut self, world_info: &mut WorldInfo) {
         // Update local HP based on world_info data
+        // If not found there, then unit is dead
         self.ent.hp = world_info.get_ent_hp(&self.ent).unwrap_or(0.0);
+
+        // If dead, return early
+        if self.ent.hp <= 0.0 {
+            return;
+        }
 
         // Apply velocity (if any)
         self.apply_velocity();
@@ -54,44 +60,49 @@ impl Unit {
         self.update_orders(world_info);
         let (next_order_option, next_order_direction_option) = self.execute_next_order();
 
+        // If there are no orders to update, return early
         if next_order_option.is_none() {
             return;
         }
 
-        let next_order = next_order_option.unwrap();
+        // Update current order status
+        let next_order =
+            next_order_option.expect(">> Could not update next order; unit order vector is empty");
         match next_order.order_type {
             OrderType::Move => {
                 self.is_attacking = false;
-                self.set_velocity(next_order_direction_option.unwrap());
+                self.set_velocity(next_order_direction_option.expect(
+                    ">> Could not set unit velocity; current order did not produce a direction vector",
+                ));
             }
             OrderType::Attack => {
                 let possible_attack_target = &next_order.attack_target;
                 if possible_attack_target.is_none() {
                     return;
                 }
-                let attack_target = possible_attack_target.unwrap();
-                let possible_attack_target_pos = world_info.get_ent_poisition_by_id(&attack_target);
+                let attack_target = possible_attack_target
+                    .expect(">> Could not find attack target id from current order");
+                let possible_attack_target_pos = world_info.get_ent_poisition_by_id(attack_target);
                 if possible_attack_target_pos.is_none() {
                     return;
                 }
-                let attack_target_pos = possible_attack_target_pos.unwrap();
+                let attack_target_pos = possible_attack_target_pos
+                    .expect(">> Could not find attack target position from world info");
                 if (self.ent.position - attack_target_pos).length() < self.range {
                     // If target is in range, stop
                     self.clear_velocity();
                     // Mark as attacking
                     self.is_attacking = true;
                     // Try to attack
-                    world_info.damage_ent(&attack_target, self.damage * TIME_STEP);
+                    world_info.damage_ent(attack_target, self.damage * TIME_STEP);
                 } else {
                     // If target is not in range, move towards it
-                    self.set_velocity(next_order_direction_option.unwrap());
+                    self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
                     // Mark as not attacking
                     self.is_attacking = false;
                 }
             }
             OrderType::AttackMove => {
-                self.is_attacking = false;
-                self.set_velocity(next_order_direction_option.unwrap());
                 // Check if any other unit is in range; if so, issue attack order to the closest one
                 let mut possible_closest_ent: Option<(EntID, Vector2D<f32>)> = None;
                 let mut closest_ent_distance = self.range;
@@ -125,6 +136,10 @@ impl Unit {
                     // Issue attack order to closest in-range target
                     // Bump it so that it takes precedence over this attack move order
                     self.bump_order(attack_order);
+                } else {
+                    // Just move towards the target position
+                    self.is_attacking = false;
+                    self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
                 }
             }
         }
@@ -139,56 +154,41 @@ impl Unit {
                 // Set colors according to order type
                 match order.order_type {
                     OrderType::Move => canvas.set_draw_color(Color::RGB(0, 150, 0)),
-                    OrderType::Attack => canvas.set_draw_color(Color::RGB(100, 0, 0)),
-                    OrderType::AttackMove => canvas.set_draw_color(Color::RGB(100, 0, 0)),
+                    OrderType::Attack | OrderType::AttackMove => {
+                        canvas.set_draw_color(Color::RGB(100, 0, 0))
+                    }
                 }
-                match i {
+                if i == 0 {
                     // If this is the next order, draw  a line from unit to waypoint
-                    0 => {
-                        canvas
-                            .draw_line(
-                                self.ent.get_rect().center(),
-                                Point::new(order.move_target.x as i32, order.move_target.y as i32),
-                            )
-                            .ok()
-                            .unwrap_or_default();
-                    }
-                    // Else, draw line from last waypoint to this one
-                    _ => {
-                        let previous_order_target = self.orders.index(i - 1).move_target;
-                        canvas
-                            .draw_line(
-                                Point::new(
-                                    previous_order_target.x as i32,
-                                    previous_order_target.y as i32,
-                                ),
-                                Point::new(order.move_target.x as i32, order.move_target.y as i32),
-                            )
-                            .ok()
-                            .unwrap_or_default();
-                    }
-                }
-
-                match order.order_type {
-                    // In case of move order, draw waypoint
-                    OrderType::Move => {
-                        let waypoint_rect: Rect = Rect::from_center(
+                    canvas
+                        .draw_line(
+                            self.ent.get_rect().center(),
                             Point::new(order.move_target.x as i32, order.move_target.y as i32),
-                            5,
-                            5,
-                        );
-                        canvas.fill_rect(waypoint_rect).ok().unwrap_or_default();
-                    }
+                        )
+                        .ok()
+                        .unwrap_or_default();
+                }
+                // Else, draw line from last waypoint to this one
+                else {
+                    let previous_order_target = self.orders.index(i - 1).move_target;
+                    canvas
+                        .draw_line(
+                            Point::new(
+                                previous_order_target.x as i32,
+                                previous_order_target.y as i32,
+                            ),
+                            Point::new(order.move_target.x as i32, order.move_target.y as i32),
+                        )
+                        .ok()
+                        .unwrap_or_default();
+                }
+                // Draw waypoint, if needed
+                match order.order_type {
                     // In case of attack order, nothing for now
                     OrderType::Attack => (),
-                    // In case of move attack move order, draw waypoint
-                    OrderType::AttackMove => {
-                        let waypoint_rect: Rect = Rect::from_center(
-                            Point::new(order.move_target.x as i32, order.move_target.y as i32),
-                            5,
-                            5,
-                        );
-                        canvas.fill_rect(waypoint_rect).ok().unwrap_or_default();
+                    // In case of move or attack move order, draw waypoint
+                    OrderType::Move | OrderType::AttackMove => {
+                        draw_waypoint(order, canvas);
                     }
                 }
             }
@@ -238,8 +238,8 @@ impl Unit {
         }
     }
 
-    pub fn set_velocity(&mut self, _velocity: Vector2D<f32>) {
-        self.velocity = _velocity;
+    pub fn set_velocity(&mut self, velocity: Vector2D<f32>) {
+        self.velocity = velocity;
     }
 
     pub fn clear_velocity(&mut self) {
@@ -257,15 +257,15 @@ impl Unit {
         self.ent.position.y += self.velocity.y * TIME_STEP * attack_penalty;
     }
 
-    pub fn add_order(&mut self, _order: Order, replace: bool) {
+    pub fn add_order(&mut self, new_order: Order, replace: bool) {
         if replace {
             self.orders.clear();
         }
-        self.orders.push(_order);
+        self.orders.push(new_order);
     }
 
-    pub fn bump_order(&mut self, _order: Order) {
-        let mut new_orders = vec![_order];
+    pub fn bump_order(&mut self, new_order: Order) {
+        let mut new_orders = vec![new_order];
         new_orders.append(&mut self.orders);
         self.orders = new_orders;
     }
@@ -296,23 +296,12 @@ impl Unit {
 
             if !next_order.completed && next_order.executed {
                 match next_order.order_type {
-                    OrderType::Move => {
-                        let rect_center = self.ent.get_rect().center();
-                        if (next_order.move_target
-                            - Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32))
-                        .length()
-                            <= 3.0
-                        {
-                            // Mark this order as completed
-                            next_order.complete();
-
-                            // The unit has moved to it's target successfully
-                            // Clear it's velocity so it can rest
-                            self.clear_velocity();
-                        }
-                    }
                     OrderType::Attack => {
-                        if !world_info.has_ent_by_id(&next_order.attack_target.unwrap()) {
+                        if !world_info.has_ent_by_id(
+                            next_order
+                                .attack_target
+                                .expect(">> Could not find attack target id from current order"),
+                        ) {
                             // Mark self as not attacking
                             self.is_attacking = false;
 
@@ -324,7 +313,7 @@ impl Unit {
                             self.clear_velocity();
                         }
                     }
-                    OrderType::AttackMove => {
+                    OrderType::Move | OrderType::AttackMove => {
                         let rect_center = self.ent.get_rect().center();
                         if (next_order.move_target
                             - Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32))
@@ -346,16 +335,16 @@ impl Unit {
         }
     }
 
-    pub fn selected(&self) -> bool {
+    pub const fn selected(&self) -> bool {
         self.selected
     }
 
     pub fn select(&mut self) {
-        self.selected = true
+        self.selected = true;
     }
 
     pub fn deselect(&mut self) {
-        self.selected = false
+        self.selected = false;
     }
 
     // This method removes completed orders from the unit's order vector

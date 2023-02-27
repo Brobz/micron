@@ -80,15 +80,12 @@ impl Input {
         camera.update_mouse_rect(Point::new(x, y));
         let scaled_mouse_pos = camera.get_scaled_mouse_pos();
         match mouse_btn {
-            MouseButton::Unknown => (),
             MouseButton::Left => match world.selection.left_click_command {
                 MouseCommand::Select => world.selection.close(scaled_mouse_pos, &mut world.units),
                 MouseCommand::Attack => world.selection.release_command(),
             },
             MouseButton::Middle => camera.release(),
-            MouseButton::Right => (),
-            MouseButton::X1 => (),
-            MouseButton::X2 => (),
+            MouseButton::Right | MouseButton::X1 | MouseButton::X2 | MouseButton::Unknown => (),
         }
     }
 
@@ -107,7 +104,7 @@ impl Input {
         let mut possible_attack_target: Option<EntID> = None;
 
         // Check wether we clicked on something attackable
-        for unit in world.units.iter() {
+        for unit in &world.units {
             if unit
                 .ent
                 .get_rect()
@@ -119,16 +116,15 @@ impl Input {
         }
 
         match mouse_btn {
-            MouseButton::Unknown => (),
             MouseButton::Left => {
                 // Left click
                 match world.selection.left_click_command {
                     MouseCommand::Select => {
                         // No command engaged, just open selection
-                        world.selection.open(scaled_mouse_pos, &mut world.units)
+                        world.selection.open(scaled_mouse_pos, &mut world.units);
                     }
                     MouseCommand::Attack => {
-                        for unit in world.units.iter_mut() {
+                        for unit in &mut world.units {
                             if unit.selected() {
                                 if possible_attack_target.is_none() {
                                     // No attack target found; Issue attack move order
@@ -175,7 +171,7 @@ impl Input {
                 // Release left click command (if any)
                 world.selection.release_command();
                 // Check wether we clicked on something attackable
-                for unit in world.units.iter() {
+                for unit in &world.units {
                     if unit
                         .ent
                         .get_rect()
@@ -186,7 +182,7 @@ impl Input {
                     }
                 }
 
-                for unit in world.units.iter_mut() {
+                for unit in &mut world.units {
                     if unit.selected() {
                         if possible_attack_target.is_none() {
                             // No attack target found; Issue move order
@@ -220,8 +216,7 @@ impl Input {
                     }
                 }
             }
-            MouseButton::X1 => (),
-            MouseButton::X2 => (),
+            MouseButton::Unknown | MouseButton::X1 | MouseButton::X2 => (),
         }
     }
 

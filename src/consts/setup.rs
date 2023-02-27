@@ -1,4 +1,4 @@
-use rand::{rngs::ThreadRng, Rng};
+use rand::Rng;
 use sdl2::rect::Point;
 use vector2d::Vector2D;
 
@@ -7,7 +7,8 @@ use crate::structs::{ent::Ent, unit::Unit, world::World, world_info::WorldInfo};
 use super::values::{MAP_HEIGHT, MAP_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 // Debug method; spawns some ents for testing
-pub fn spawn_debug_ents(rng: &mut ThreadRng, world: &mut World, world_info: &mut WorldInfo) {
+pub fn spawn_debug_ents(world: &mut World, world_info: &mut WorldInfo) {
+    let mut rng = rand::thread_rng();
     for _ in 1..500 {
         let new_ent = Ent::new(
             100,

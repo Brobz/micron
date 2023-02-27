@@ -21,8 +21,8 @@ pub struct WorldInfo {
 }
 
 impl WorldInfo {
-    pub fn new() -> WorldInfo {
-        WorldInfo {
+    pub fn new() -> Self {
+        Self {
             ent_max_hp: HashMap::new(),
             ent_hp: HashMap::new(),
             ent_rect_center: HashMap::new(),
@@ -38,12 +38,12 @@ impl WorldInfo {
         return self.ent_hp.get(&ent.id).copied();
     }
 
-    pub fn get_ent_poisition_by_id(&self, ent_id: &EntID) -> Option<Vector2D<f32>> {
-        return self.ent_rect_center.get(ent_id).copied();
+    pub fn get_ent_poisition_by_id(&self, ent_id: EntID) -> Option<Vector2D<f32>> {
+        return self.ent_rect_center.get(&ent_id).copied();
     }
 
     pub fn update_ent(&mut self, ent: &Ent) {
-        self.clear_ent_by_id(&ent.id);
+        self.clear_ent_by_id(ent.id);
         let ent_rect = ent.get_rect();
         let ent_rect_center = ent_rect.center();
         self.ent_hp.insert(ent.id, ent.hp);
@@ -54,17 +54,21 @@ impl WorldInfo {
         self.ent_rect.insert(ent.id, ent_rect);
     }
 
-    pub fn damage_ent(&mut self, ent_id: &EntID, dmg: f32) {
-        if self.ent_hp.get_mut(ent_id).is_none() {
+    pub fn damage_ent(&mut self, ent_id: EntID, dmg: f32) {
+        if self.ent_hp.get_mut(&ent_id).is_none() {
             return;
         }
 
-        let new_hp = *self.ent_hp.get_mut(ent_id).unwrap() - dmg;
+        let new_hp = *self
+            .ent_hp
+            .get_mut(&ent_id)
+            .expect(">> Could not find entity hp in world_info")
+            - dmg;
         if new_hp < 0.0 {
             self.remove_ent_by_id(ent_id);
         } else {
-            self.ent_hp.remove(ent_id);
-            self.ent_hp.insert(*ent_id, new_hp);
+            self.ent_hp.remove(&ent_id);
+            self.ent_hp.insert(ent_id, new_hp);
         }
     }
 
@@ -80,31 +84,31 @@ impl WorldInfo {
         self.ent_rect.insert(ent.id, ent_rect);
     }
 
-    pub fn clear_ent_by_id(&mut self, ent_id: &EntID) {
-        if self.ent_hp.contains_key(ent_id) {
-            self.ent_hp.remove(ent_id);
+    pub fn clear_ent_by_id(&mut self, ent_id: EntID) {
+        if self.ent_hp.contains_key(&ent_id) {
+            self.ent_hp.remove(&ent_id);
         }
-        if self.ent_rect_center.contains_key(ent_id) {
-            self.ent_rect_center.remove(ent_id);
+        if self.ent_rect_center.contains_key(&ent_id) {
+            self.ent_rect_center.remove(&ent_id);
         }
-        if self.ent_rect.contains_key(ent_id) {
-            self.ent_rect.remove(ent_id);
+        if self.ent_rect.contains_key(&ent_id) {
+            self.ent_rect.remove(&ent_id);
         }
     }
 
-    pub fn remove_ent_by_id(&mut self, ent_id: &EntID) {
+    pub fn remove_ent_by_id(&mut self, ent_id: EntID) {
         self.clear_ent_by_id(ent_id);
-        if self.ent_max_hp.contains_key(ent_id) {
-            self.ent_max_hp.remove(ent_id);
+        if self.ent_max_hp.contains_key(&ent_id) {
+            self.ent_max_hp.remove(&ent_id);
         }
     }
 
     pub fn has_ent(&self, ent: &Ent) -> bool {
-        self.has_ent_by_id(&ent.id)
+        self.has_ent_by_id(ent.id)
     }
 
-    pub fn has_ent_by_id(&self, ent_id: &EntID) -> bool {
-        if self.ent_hp.contains_key(ent_id) {
+    pub fn has_ent_by_id(&self, ent_id: EntID) -> bool {
+        if self.ent_hp.contains_key(&ent_id) {
             return true;
         }
         false
@@ -112,9 +116,18 @@ impl WorldInfo {
 
     pub fn draw_health_bars(&self, canvas: &mut Canvas<Window>) {
         for ent_id in self.ent_hp.keys() {
-            let health = self.ent_hp.get(ent_id).unwrap();
-            let max_health = self.ent_max_hp.get(ent_id).unwrap();
-            let pos = self.ent_rect_center.get(ent_id).unwrap();
+            let health = self
+                .ent_hp
+                .get(ent_id)
+                .expect(">> Could not find entity hp in world info");
+            let max_health = self
+                .ent_max_hp
+                .get(ent_id)
+                .expect(">> Could not find entity max_hp in world info");
+            let pos = self
+                .ent_rect_center
+                .get(ent_id)
+                .expect(">> Could not find entity rect_center in world info");
             let empty_health_bar_rec = Rect::from_center(
                 Point::new(pos.x as i32, (pos.y - HEALTH_BAR_Y_FLOAT) as i32),
                 HEALTH_BAR_WIDTH as u32,
