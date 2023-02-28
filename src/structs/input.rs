@@ -82,6 +82,20 @@ impl Input {
                     }
                 }
 
+                Event::KeyDown {
+                    keycode: Some(Keycode::H),
+                    ..
+                } => {
+                    for unit in &mut world.units {
+                        if unit.ent.selected()
+                            && (unit.ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
+                        {
+                            // Issue hold position order to owned selected units
+                            unit.hold_position();
+                        }
+                    }
+                }
+
                 _ => {}
             }
         }

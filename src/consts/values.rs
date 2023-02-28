@@ -57,4 +57,6 @@ pub const SELECTION_BORDER_COLOR: Color = Color::RGBA(50, 225, 50, 225);
 pub const RED_RGB: Color = Color::RGB(255, 0, 0);
 pub const RED_RGBA_WEAK: Color = Color::RGBA(255, 0, 0, 200);
 pub const GREEN_RGB: Color = Color::RGB(0, 255, 0);
+pub const ORANGE_RGB: Color = Color::RGB(255, 25, 255);
+pub const GREY_RGB: Color = Color::RGB(200, 200, 200);
 pub const BLACK_RGB: Color = Color::RGB(0, 0, 0);

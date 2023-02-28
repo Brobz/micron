@@ -1,17 +1,19 @@
 use std::ops::{Index, IndexMut};
 
+use rand::Rng;
 use vector2d::Vector2D;
 
 use sdl2::pixels::Color;
-use sdl2::rect::Point;
+use sdl2::rect::{Point, Rect};
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use crate::consts::helper::{draw_selection_border, draw_waypoint, get_direction_from_to};
 use crate::consts::values::{
     ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, BLACK_RGB,
-    FOLLOW_ORDER_HOVER_DISTANCE, RED_RGB, RED_RGBA_WEAK, SELECTION_ATTACK_TARGET_BORDER_COLOR,
-    SELECTION_BORDER_COLOR, SELECTION_FOLLOW_TARGET_BORDER_COLOR, TIME_STEP,
+    FOLLOW_ORDER_HOVER_DISTANCE, GREY_RGB, ORANGE_RGB, RED_RGBA_WEAK,
+    SELECTION_ATTACK_TARGET_BORDER_COLOR, SELECTION_BORDER_COLOR,
+    SELECTION_FOLLOW_TARGET_BORDER_COLOR, TIME_STEP,
 };
 use crate::ent::Ent;
 
@@ -27,6 +29,7 @@ pub struct Unit {
     pub damage: f32,
     pub range: f32,
     is_attacking: bool,
+    attack_line_render_latch_point_delta: Option<Point>,
     velocity: Vector2D<f32>,
     pub orders: Vec<Order>,
 }
@@ -39,11 +42,15 @@ impl Unit {
             damage: BASE_UNIT_DAMAGE,
             range: BASE_UNIT_RANGE,
             is_attacking: false,
+            attack_line_render_latch_point_delta: None,
             velocity: Vector2D::<f32>::new(0.0, 0.0),
             orders: Vec::<Order>::new(),
         }
     }
 
+    // TODO: CLEAN UP THIS METHOD
+    //          -> Separate into smaller methods
+    //          -> Abstract out repeated logic sections
     pub fn tick(&mut self, world_info: &mut WorldInfo) {
         // Update local HP based on world_info data
         // If not found there, then unit is dead
@@ -64,16 +71,17 @@ impl Unit {
             if self.ent.state == State::Stop {
                 return;
             }
-            // Else, set state to Alert
-            else {
+            // Else, if not holding, set state to Alert
+            else if self.ent.state != State::Hold {
                 self.ent.state = State::Alert;
             }
         }
 
-        // Check for Alert state
+        // Checks for Alert & Hold state
         // An alert unit has no pending orders in its queue
-        // It should actively seek combat with enemy units that appear in its range
-        if self.ent.state == State::Alert {
+        // It should actively seek to attack enemy units that appear in its range
+        // Hold units behave similarly, but issue lazy attacks instead (won't chase)
+        if vec![State::Alert, State::Hold].contains(&self.ent.state) {
             // Check if any other unit is in range; if so, issue attack order to the closest one
             let mut closest_ent_in_range = EntTarget {
                 ent_id: None,
@@ -126,7 +134,11 @@ impl Unit {
                     .ent_rect
                     .expect(">> Could not find ent rect by id");
                 let attack_order = Order::new(
-                    OrderType::Attack,
+                    if self.ent.state == State::Alert {
+                        OrderType::Attack
+                    } else {
+                        OrderType::LazyAttack
+                    },
                     Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
                     closest_ent_in_range,
                 );
@@ -137,7 +149,7 @@ impl Unit {
         }
 
         // Check existing orders for completion
-        self.check_orders(world_info);
+        self.check_orders();
 
         // Clear any completed orders
         self.clear_completed_orders();
@@ -153,10 +165,13 @@ impl Unit {
         // Execute current order
         let next_order =
             next_order_option.expect(">> Could not grab next order from unit order vector");
+        // Keep a flag in case we can safely clear next order after execution
+        let mut did_complete_order = false;
+
         match next_order.order_type {
             OrderType::Move => {
                 self.ent.state = State::Busy;
-                self.is_attacking = false;
+                self.stop_attacking();
                 self.set_velocity(next_order_direction_option.expect(
                     ">> Could not set unit velocity; current order did not produce a direction vector",
                 ));
@@ -164,49 +179,75 @@ impl Unit {
             OrderType::Attack => {
                 let possible_attack_target = &next_order.ent_target;
                 if possible_attack_target.ent_id.is_none() {
-                    return;
-                }
-                let attack_target_id = possible_attack_target
-                    .ent_id
-                    .expect(">> Could not find attack target id from current order");
-                let possible_attack_target_pos =
-                    world_info.get_ent_poisition_by_id(attack_target_id);
-                if possible_attack_target_pos.is_none() {
-                    return;
-                }
-                let attack_target_pos = possible_attack_target_pos
-                    .expect(">> Could not find attack target position from world info");
-                let self_rect_center = self.ent.get_rect().center();
-                if (Vector2D::<f32>::new(self_rect_center.x as f32, self_rect_center.y as f32)
-                    - attack_target_pos)
-                    .length()
-                    < self.range
-                {
-                    // If target is in range, stop
+                    // No more target, attack is done!
+                    did_complete_order = true;
+                    // Mark self as not attacking
+                    self.stop_attacking();
+                    // Clear velocity; Attack order could have a unit moving
                     self.clear_velocity();
-                    // Mark as attacking
-                    self.is_attacking = true;
-                    // Try to attack
-                    world_info.damage_ent(attack_target_id, self.damage * TIME_STEP);
                 } else {
-                    // If target is not in range, move towards it
-                    self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
-                    // Mark as not attacking
-                    self.is_attacking = false;
+                    let attack_target_id = possible_attack_target
+                        .ent_id
+                        .expect(">> Could not find attack target id from current order");
+                    if !world_info.has_ent_by_id(attack_target_id) {
+                        // No more target, attack is done!
+                        did_complete_order = true;
+                        // Mark self as not attacking
+                        self.stop_attacking();
+                        // Clear velocity; Attack order could have a unit moving
+                        self.clear_velocity();
+                    } else {
+                        let attack_target_pos = world_info
+                            .get_ent_rect_center_poisition_by_id(attack_target_id)
+                            .expect(">> Could not find attack target position from world info");
+                        let self_rect_center = self.ent.get_rect().center();
+                        if (Vector2D::<f32>::new(
+                            self_rect_center.x as f32,
+                            self_rect_center.y as f32,
+                        ) - attack_target_pos)
+                            .length()
+                            < self.range
+                        {
+                            // If target is in range, check if already attacking
+                            if self.is_attacking {
+                                world_info.damage_ent(attack_target_id, self.damage * TIME_STEP);
+                            } else {
+                                // Else, start attacking
+                                self.start_attacking(possible_attack_target.ent_rect.expect(">> Could not get ent rect from attack target, but could find rect center position in world info?"));
+                            }
+                        } else {
+                            // If target is not in range, move towards it
+                            self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
+                            // Mark as not attacking
+                            self.stop_attacking()
+                        }
+                        self.ent.state = State::Busy;
+                    }
                 }
-                self.ent.state = State::Busy;
             }
             OrderType::AttackMove => {
                 self.ent.state = State::Alert;
-                self.is_attacking = false;
+                self.stop_attacking();
                 self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
             }
             OrderType::Follow => {
                 // Unit should stop moving if it gets within a certain distance of it's follow target
-                let rect_center = world_info
-                    .get_ent_rect_center_by_id(self.ent.id)
-                    .expect(">> Could not find entity rect center by id");
-                if (next_order.current_move_target - rect_center).length()
+                // If target is dead, complete order
+                if next_order.ent_target.ent_id.is_none() {
+                    did_complete_order = true;
+                } else {
+                    let follow_target_id = next_order
+                        .ent_target
+                        .ent_id
+                        .expect(">> Could not get entity id form follow target");
+                    if !world_info.has_ent_by_id(follow_target_id) {
+                        did_complete_order = true;
+                    }
+                }
+                let rect_center = self.ent.get_rect().center();
+                if (next_order.current_move_target
+                    - Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32))
+                .length()
                     <= FOLLOW_ORDER_HOVER_DISTANCE
                 {
                     self.clear_velocity();
@@ -215,13 +256,75 @@ impl Unit {
                         ">> Could not set unit velocity; current order did not produce a direction vector",
                     ));
                 }
-                self.is_attacking = false;
+                self.stop_attacking();
                 self.ent.state = State::Busy;
+            }
+            OrderType::LazyAttack => {
+                let possible_attack_target = &next_order.ent_target;
+                if possible_attack_target.ent_id.is_none() {
+                    // No more target, Lazy Attack is done!
+                    // Mark self as not attacking as well
+                    self.stop_attacking();
+                    did_complete_order = true;
+                    // Note: Since lazy attacks only occur while holding poisitiong (FOR NOW),
+                    // We must set this unit's state from Busy back to Hold after its done with the lazy attack
+                    self.ent.state = State::Hold;
+                } else {
+                    let attack_target_id = possible_attack_target
+                        .ent_id
+                        .expect(">> Could not find attack target id from current order");
+                    if !world_info.has_ent_by_id(attack_target_id) {
+                        // No more target, Lazy Attack is done!
+                        // Mark self as not attacking as well
+                        self.stop_attacking();
+                        did_complete_order = true;
+                        // Note: Since lazy attacks only occur while holding poisitiong (FOR NOW),
+                        // We must set this unit's state from Busy back to Hold after its done with the lazy attack
+                        self.ent.state = State::Hold;
+                    } else {
+                        let attack_target_pos = world_info
+                            .get_ent_rect_center_poisition_by_id(attack_target_id)
+                            .expect(">> Could not find attack target position from world info");
+                        let self_rect_center = self.ent.get_rect().center();
+                        if (Vector2D::<f32>::new(
+                            self_rect_center.x as f32,
+                            self_rect_center.y as f32,
+                        ) - attack_target_pos)
+                            .length()
+                            < self.range
+                        {
+                            // If target is in range, check if already attacking
+                            if self.is_attacking {
+                                // Already attacking, try to deal damage
+                                world_info.damage_ent(attack_target_id, self.damage * TIME_STEP);
+                            } else {
+                                // Else, start attacking
+                                self.start_attacking(
+                                    world_info.get_ent_rect_by_id(attack_target_id).expect(
+                                        ">> Could not get entity rect by id from attack target",
+                                    ),
+                                );
+                            }
+                        } else {
+                            // If not in range, Lazy Attack is done!
+                            did_complete_order = true;
+                            self.stop_attacking();
+                            // Note: Since lazy attacks only occur while holding poisitiong (FOR NOW),
+                            // We must set this unit's state from Busy back to Hold after its done with the lazy attack
+                            self.ent.state = State::Hold;
+                        }
+                    }
+                }
             }
         }
 
-        // Mark order as executed
-        self.orders.index_mut(0).execute();
+        // Check if we can complete the order
+        if did_complete_order {
+            self.orders.index_mut(0).complete();
+        } else {
+            // Else, mark order as executed
+            self.orders.index_mut(0).execute();
+        }
     }
 
     pub fn draw(&self, canvas: &mut Canvas<Window>) {
@@ -239,23 +342,6 @@ impl Unit {
             draw_selection_border(canvas, &self.ent.get_rect(), border_color);
         }
 
-        // Draw attack lines (if attacking)
-        if self.is_attacking {
-            let possible_attack_order = self.orders.get(0);
-            if let Some(attack_order) = possible_attack_order {
-                canvas.set_draw_color(RED_RGB);
-                canvas
-                    .draw_line(
-                        self.ent.get_rect().center(),
-                        Point::new(
-                            attack_order.current_move_target.x as i32,
-                            attack_order.current_move_target.y as i32,
-                        ),
-                    )
-                    .ok()
-                    .unwrap_or_default();
-            }
-        }
         // Draw self (if alive)
         canvas.set_draw_color(self.ent.color);
         if self.ent.owner == Owner::Cpu {
@@ -265,6 +351,14 @@ impl Unit {
         canvas.fill_rect(rect).ok().unwrap_or_default();
         canvas.set_draw_color(BLACK_RGB);
         canvas.draw_rect(rect).ok();
+        if self.ent.state == State::Stop {
+            canvas.set_draw_color(GREY_RGB);
+            canvas.draw_point(self.ent.get_rect().center()).ok();
+        }
+        if self.ent.state == State::Hold {
+            canvas.set_draw_color(ORANGE_RGB);
+            canvas.draw_point(self.ent.get_rect().center()).ok();
+        }
     }
 
     pub fn draw_orders(&self, canvas: &mut Canvas<Window>) {
@@ -276,7 +370,7 @@ impl Unit {
                 // Set colors according to order type
                 match order.order_type {
                     OrderType::Move => canvas.set_draw_color(Color::RGB(0, 150, 0)),
-                    OrderType::Attack | OrderType::AttackMove => {
+                    OrderType::Attack | OrderType::AttackMove | OrderType::LazyAttack => {
                         canvas.set_draw_color(SELECTION_ATTACK_TARGET_BORDER_COLOR)
                     }
                     OrderType::Follow => {
@@ -317,7 +411,7 @@ impl Unit {
                 match order.order_type {
                     // In case of attack order, draw red selection border on attacked ent
                     // (if target is still alive)
-                    OrderType::Attack => {
+                    OrderType::Attack | OrderType::LazyAttack => {
                         if let Some(attack_target_rect) = &order.ent_target.ent_rect {
                             draw_selection_border(
                                 canvas,
@@ -341,6 +435,25 @@ impl Unit {
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+
+    pub fn draw_attack_lines(&self, canvas: &mut Canvas<Window>) {
+        // Draw attack lines (if attacking)
+        if self.is_attacking {
+            let possible_attack_order = self.orders.get(0);
+            if let Some(attack_order) = possible_attack_order {
+                if let Some(attack_target_rect) = attack_order.ent_target.ent_rect {
+                    canvas.set_draw_color(self.ent.color);
+                    canvas
+                        .draw_line(
+                            self.ent.get_rect().center(),
+                            attack_target_rect.center() + self.attack_line_render_latch_point_delta.expect(">> Could not get attack line render latch point, but is unit attacking?"),
+                        )
+                        .ok()
+                        .unwrap_or_default();
                 }
             }
         }
@@ -400,33 +513,12 @@ impl Unit {
 
     // This method checks the current executed order for completion
     // If its completed, marks it as so, and processes results
-    pub fn check_orders(&mut self, world_info: &WorldInfo) {
+    pub fn check_orders(&mut self) {
         if !self.orders.is_empty() {
             let next_order = self.orders.index_mut(0);
 
             if !next_order.completed && next_order.executed {
                 match next_order.order_type {
-                    OrderType::Attack | OrderType::Follow => {
-                        // A follow order can never be completed!
-                        // It can only get cleard or canceled (if the followed unit dies)
-                        // To complete an attack order, the target must be DEAD!
-                        if !world_info.has_ent_by_id(
-                            next_order
-                                .ent_target
-                                .ent_id
-                                .expect(">> Could not find attack target id from current order"),
-                        ) {
-                            // Mark self as not attacking
-                            self.is_attacking = false;
-
-                            // Mark this order as completed
-                            next_order.complete();
-
-                            // The unit has moved to it's target successfully
-                            // Clear it's velocity so it can rest
-                            self.clear_velocity();
-                        }
-                    }
                     OrderType::Move | OrderType::AttackMove => {
                         // To complete either a move or attack move order, unit must reach it's destination
                         let rect_center = self.ent.get_rect().center();
@@ -443,6 +535,12 @@ impl Unit {
                             self.clear_velocity();
                         }
                     }
+                    // A follow order can never be completed!
+                    // It can only get cleard or canceled (if the followed unit dies)
+                    // To complete an attack or lazy attack order, the target must be DEAD!
+                    // That gets checked right before trying to attack it during execution,
+                    // So it can get completed and cleaned up there as well.
+                    OrderType::LazyAttack | OrderType::Attack | OrderType::Follow => (),
                 }
             }
         }
@@ -460,8 +558,42 @@ impl Unit {
         // Cancel all orders
         self.clear_orders();
         // Set state to stopped
-        self.is_attacking = false;
+        self.stop_attacking();
         self.ent.state = State::Stop;
         self.clear_velocity();
+    }
+
+    // This method executes a hold position order to the unit
+    // Hold position order clears velocity, and sets state to Hold
+    // It also clears orders, meaning it removes itself. pretty handy.
+    pub fn hold_position(&mut self) {
+        // Cancel all orders
+        self.clear_orders();
+        // Stop moving
+        self.clear_velocity();
+        // Set state to hold
+        self.ent.state = State::Hold;
+    }
+
+    pub fn stop_attacking(&mut self) {
+        self.is_attacking = false;
+        self.attack_line_render_latch_point_delta = None;
+    }
+
+    pub fn start_attacking(&mut self, attack_target_rect: Rect) {
+        self.clear_velocity();
+        self.ent.state = State::Busy;
+        let mut rng = rand::thread_rng();
+        self.is_attacking = true;
+        self.attack_line_render_latch_point_delta = Some(Point::new(
+            rng.gen_range(
+                (-(attack_target_rect.width() as f32 + 2.0) / 2.0) as i32
+                    ..((attack_target_rect.width() as f32 - 2.0) / 2.0) as i32,
+            ),
+            rng.gen_range(
+                (-(attack_target_rect.height() as f32 + 2.0) / 2.0) as i32
+                    ..((attack_target_rect.height() as f32 - 2.0) / 2.0) as i32,
+            ),
+        ));
     }
 }

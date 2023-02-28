@@ -4,23 +4,23 @@
 // TODO:
 
 //  Some important backlog stuff
+//  ??. Make standard methods for repeated ocurrances in unit logic, such as checking distance between two positions, the attack order computations, etc..
 //  ??. Limit framerate somehow (try using sdl2_timing)?
 //  ??. Figure out a way to only draw required orders (i.e. a selection of units gets shift moved around; all but the line from unit to first waypoint will be redrawn uselessly)
 //      ==> This MASSIVELY boosts performace, not drawing orders for 1k units eliminates all lag when queuing. this would effectively cut 90% of the orders to draw out
 
-// Current stuff
-//  1. Add hold position order (H)
-//      0. Hold Position = State Alert, issue LazyAttack (attack while in range, no following)
+// Some Current Stuff
+//  0. Add select all army hotkey (F2)
 
-//  2. Test collision feel & benchmark
+//  1. Test collision feel & benchmark
 //      0. Add collision checks for units (disallow intersections, no bouncing at first) and test performance compared to no collision tests
 //      1. Maybe try a Mutalisk style thing - can overlap freely while moving, but slowly unbunch until completely separated when resting
 
-//  3. Refactor game system
+//  2. Refactor game system
 //      0. Have a GameObject Enum that can be either Unit or Structure; ent will be contained inside those; refactor all world.units calculations to use world.game_objects
 //      1. Change all pair data types on structs to Vector2D<f32>; Then convert back to point as needed for drawing (might be better then current way of things)
 
-//  4. Get creative with combat
+//  3. Get creative with combat
 //      0. Figure out proper combat (attack speed (maybe not? check next list #))
 //      1. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
 
@@ -122,7 +122,9 @@ fn main() -> Result<(), String> {
                     .expect(">> Could not find attack target id for order");
 
                 // Update the order's target position to the attacked entity's position (if available)
-                if let Some(target_position) = world_info.get_ent_poisition_by_id(ent_target_id) {
+                if let Some(target_position) =
+                    world_info.get_ent_rect_center_poisition_by_id(ent_target_id)
+                {
                     order.current_move_target = target_position;
                 }
 
@@ -166,6 +168,11 @@ fn main() -> Result<(), String> {
         // Draw units
         for unit in &world.units {
             unit.draw(&mut canvas);
+        }
+
+        // Draw attack lines
+        for unit in &world.units {
+            unit.draw_attack_lines(&mut canvas);
         }
 
         // Draw Health Bars

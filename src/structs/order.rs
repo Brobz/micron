@@ -8,6 +8,7 @@ pub enum OrderType {
     Move,
     Follow,
     Attack,
+    LazyAttack,
     AttackMove,
 }
 

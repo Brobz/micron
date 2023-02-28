@@ -4,7 +4,7 @@ use sdl2::{
 };
 use vector2d::Vector2D;
 
-use crate::consts::helper::CURRENT_ENT_ID;
+use crate::consts::{helper::CURRENT_ENT_ID, values::RED_RGB};
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Owner {
@@ -17,6 +17,8 @@ pub enum State {
     Alert, // No pending orders; Will latch on to closest enemy in range. Idle.
     Busy,  // Will continue to do whatever until it's done or cancelled (or death).
     Stop,  // No orders; Will remain still untill another order is directly issued by the owner.
+    Hold, // No orders; Will hold position and issue LazyAttack commands (attack whatever enters its range, but won't chase)
+          // -> TODO: maybe make it switch targets to closes target? will have to see
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -47,7 +49,11 @@ impl Ent {
             radius: -1,
             max_hp,
             hp: max_hp as f32,
-            color: Color::RGB(0, 100, 100),
+            color: if owner == Owner::Player {
+                Color::RGB(0, 100, 100)
+            } else {
+                RED_RGB
+            },
             owner,
             state: State::Alert,
             selected: false,

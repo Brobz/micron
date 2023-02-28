@@ -40,7 +40,7 @@ impl WorldInfo {
         return self.ent_hp.get(&ent.id).copied();
     }
 
-    pub fn get_ent_poisition_by_id(&self, ent_id: EntID) -> Option<Vector2D<f32>> {
+    pub fn get_ent_rect_center_poisition_by_id(&self, ent_id: EntID) -> Option<Vector2D<f32>> {
         return self.ent_rect_center.get(&ent_id).copied();
     }
 
@@ -129,7 +129,7 @@ impl WorldInfo {
         self.ent_team.get(&ent_id).copied()
     }
 
-    pub fn get_ent_rect_center_by_id(&self, ent_id: EntID) -> Option<Vector2D<f32>> {
+    pub fn _get_ent_rect_center_by_id(&self, ent_id: EntID) -> Option<Vector2D<f32>> {
         self.ent_rect_center.get(&ent_id).copied()
     }
 
