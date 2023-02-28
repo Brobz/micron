@@ -8,6 +8,8 @@ use crate::consts::helper::find_selection_box_translation;
 use crate::consts::values::SELECTION_BOX_COLOR;
 use crate::Unit;
 
+use super::ent::Team;
+
 pub enum MouseCommand {
     Select,
     Attack,
@@ -44,6 +46,7 @@ impl Selection {
                 unit.ent.deselect();
             }
             self.clearing = false;
+            self.origin = mouse_position;
         } else if self.open {
             let new_pos = find_selection_box_translation(mouse_position, self.origin);
             self.selection_box.set_x(new_pos.x);
@@ -55,14 +58,20 @@ impl Selection {
             self.center = self.selection_box.center();
         } else if self.just_closed {
             let mut at_least_one_selected = false;
+            let mut at_least_one_from_player_selected = false;
+            let mut units_to_select: Vec<&mut Unit> = Vec::<&mut Unit>::new();
             let mut units_to_deselect: Vec<&mut Unit> = Vec::<&mut Unit>::new();
             for unit in units {
                 let possible_intersection = unit.ent.get_rect().intersection(self.selection_box);
                 if possible_intersection.is_some() {
-                    // Select this unit
-                    unit.ent.select();
                     // Flag that this selection grabbed at least one ent
                     at_least_one_selected = true;
+                    // Check if this ent is player-controlled
+                    if unit.ent.team == Team::Player {
+                        at_least_one_from_player_selected = true;
+                    }
+                    // Mark this unit as selectable
+                    units_to_select.push(unit);
                 } else {
                     units_to_deselect.push(unit);
                 }
@@ -73,6 +82,13 @@ impl Selection {
                     if !self.queueing {
                         unit.ent.deselect();
                     }
+                }
+            }
+            for unit in units_to_select {
+                if unit.ent.team == Team::Player || !at_least_one_from_player_selected {
+                    unit.ent.select();
+                } else {
+                    unit.ent.deselect();
                 }
             }
             self.just_closed = false;

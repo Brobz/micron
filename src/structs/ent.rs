@@ -1,7 +1,16 @@
-use sdl2::rect::{Point, Rect};
+use sdl2::{
+    pixels::Color,
+    rect::{Point, Rect},
+};
 use vector2d::Vector2D;
 
 use crate::consts::helper::CURRENT_ENT_ID;
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Team {
+    Player,
+    Cpu,
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct EntID(pub u64);
@@ -13,11 +22,13 @@ pub struct Ent {
     pub radius: i32,
     pub max_hp: u32,
     pub hp: f32,
+    pub color: Color,
+    pub team: Team,
     selected: bool,
 }
 
 impl Ent {
-    pub fn new(max_hp: u32, position: Vector2D<f32>, rect_size: Point) -> Self {
+    pub fn new(team: Team, max_hp: u32, position: Vector2D<f32>, rect_size: Point) -> Self {
         unsafe {
             CURRENT_ENT_ID.0 += 1;
         }
@@ -28,6 +39,8 @@ impl Ent {
             radius: -1,
             max_hp,
             hp: max_hp as f32,
+            color: Color::RGB(0, 100, 100),
+            team,
             selected: false,
         }
     }

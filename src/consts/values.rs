@@ -46,11 +46,12 @@ pub const SCREEN_BACKGROUND_COLOR: Color = Color::RGB(64, 192, 255);
 // Color of the selection box, with alpha
 pub const SELECTION_BOX_COLOR: Color = Color::RGBA(50, 150, 25, 100);
 // Color of the entity selection border, with alpha
-pub const SELECTION_BORDER_COLOR: Color = Color::RGBA(150, 0, 0, 225);
+pub const SELECTION_TARGET_BORDER_COLOR: Color = Color::RGBA(150, 0, 0, 225);
 // Color of the entity selection target border, with alpha
-pub const SELECTION_TARGET_BORDER_COLOR: Color = Color::RGBA(50, 225, 50, 225);
+pub const SELECTION_BORDER_COLOR: Color = Color::RGBA(50, 225, 50, 225);
 
 // Some useful color definitions
 pub const RED_RGB: Color = Color::RGB(255, 0, 0);
+pub const RED_RGBA_WEAK: Color = Color::RGBA(255, 0, 0, 200);
 pub const GREEN_RGB: Color = Color::RGB(0, 255, 0);
 pub const BLACK_RGB: Color = Color::RGB(0, 0, 0);

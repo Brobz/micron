@@ -3,7 +3,7 @@ use vector2d::Vector2D;
 
 use super::{
     camera::Camera,
-    ent::EntID,
+    ent::Team,
     order::{AttackTarget, Order, OrderType},
     selection::MouseCommand,
     world::World,
@@ -104,7 +104,13 @@ impl Input {
         // Then, get scaled mouse position
         let scaled_mouse_pos = camera.get_scaled_mouse_pos();
         // This right click might issue an attack order, we will need to store its possible target
-        let mut possible_attack_target: Option<EntID> = None;
+        let mut attack_target = AttackTarget {
+            ent_id: None,
+            ent_rect: None,
+            ent_team: None,
+        };
+        // Flag to know if we found at least one target
+        let mut found_target = false;
 
         // Check wether we clicked on something attackable
         for unit in &world.units {
@@ -113,7 +119,12 @@ impl Input {
                 .get_rect()
                 .has_intersection(camera.get_scaled_mouse_rect())
             {
-                possible_attack_target = Option::Some(unit.ent.id);
+                attack_target = AttackTarget {
+                    ent_id: Some(unit.ent.id),
+                    ent_rect: Some(unit.ent.get_rect()),
+                    ent_team: Some(unit.ent.team),
+                };
+                found_target = true;
                 break;
             }
         }
@@ -128,8 +139,8 @@ impl Input {
                     }
                     MouseCommand::Attack => {
                         for unit in &mut world.units {
-                            if unit.ent.selected() {
-                                if possible_attack_target.is_none() {
+                            if unit.ent.selected() && unit.ent.team == Team::Player {
+                                if !found_target {
                                     // No attack target found; Issue attack move order
                                     let attack_move_order = Order::new(
                                         OrderType::AttackMove,
@@ -140,6 +151,7 @@ impl Input {
                                         AttackTarget {
                                             ent_id: None,
                                             ent_rect: None,
+                                            ent_team: None,
                                         },
                                     );
                                     unit.add_order(attack_move_order, !world.selection.queueing);
@@ -147,9 +159,17 @@ impl Input {
                                     // Attack target found; check if it is a valid one
                                     // (defaults to self in case it's not there, canceling the attack (it should be there tho))
                                     let attack_target_id =
-                                        possible_attack_target.unwrap_or(unit.ent.id);
+                                        attack_target.ent_id.unwrap_or(unit.ent.id);
                                     if attack_target_id == unit.ent.id {
                                         // Cannot attack yourself!
+                                        continue;
+                                    }
+                                    if attack_target
+                                        .ent_team
+                                        .expect(">> Could not get entity team from attack target")
+                                        == unit.ent.team
+                                    {
+                                        // Cannot attack an ent on the same team!
                                         continue;
                                     }
                                     let attack_order = Order::new(
@@ -162,6 +182,8 @@ impl Input {
                                             ent_id: Some(attack_target_id),
                                             ent_rect: world_info
                                                 .get_ent_rect_by_id(attack_target_id),
+                                            ent_team: world_info
+                                                .get_ent_team_by_id(attack_target_id),
                                         },
                                     );
                                     unit.add_order(attack_order, !world.selection.queueing);
@@ -187,14 +209,18 @@ impl Input {
                         .get_rect()
                         .has_intersection(camera.get_scaled_mouse_rect())
                     {
-                        possible_attack_target = Option::Some(unit.ent.id);
+                        attack_target = AttackTarget {
+                            ent_id: Some(unit.ent.id),
+                            ent_rect: Some(unit.ent.get_rect()),
+                            ent_team: Some(unit.ent.team),
+                        };
                         break;
                     }
                 }
 
                 for unit in &mut world.units {
-                    if unit.ent.selected() {
-                        if possible_attack_target.is_none() {
+                    if unit.ent.selected() && unit.ent.team == Team::Player {
+                        if !found_target {
                             // No attack target found; Issue move order
                             let move_order = Order::new(
                                 OrderType::Move,
@@ -205,15 +231,26 @@ impl Input {
                                 AttackTarget {
                                     ent_id: None,
                                     ent_rect: None,
+                                    ent_team: None,
                                 },
                             );
                             unit.add_order(move_order, !world.selection.queueing);
                         } else {
                             // Attack target found; check if it is a valid one
                             // (defaults to self in case it's not there, canceling the attack (it should be there tho))
-                            let attack_target_id = possible_attack_target.unwrap_or(unit.ent.id);
+                            let attack_target_id = attack_target.ent_id.unwrap_or(unit.ent.id);
                             if attack_target_id == unit.ent.id {
                                 // Cannot attack yourself!
+                                continue;
+                            }
+                            // Check if this target is on the opposing team
+                            if attack_target
+                                .ent_team
+                                .expect(">> Could not get identity team from attack target")
+                                == unit.ent.team
+                            {
+                                // Cannot attack an ent on the same team!
+                                // TODO: Issue follow order here
                                 continue;
                             }
                             let attack_order = Order::new(
@@ -225,6 +262,7 @@ impl Input {
                                 AttackTarget {
                                     ent_id: Option::Some(attack_target_id),
                                     ent_rect: world_info.get_ent_rect_by_id(attack_target_id),
+                                    ent_team: world_info.get_ent_team_by_id(attack_target_id),
                                 },
                             );
                             unit.add_order(attack_order, !world.selection.queueing);

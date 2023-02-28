@@ -2,15 +2,21 @@ use rand::Rng;
 use sdl2::rect::Point;
 use vector2d::Vector2D;
 
-use crate::structs::{ent::Ent, unit::Unit, world::World, world_info::WorldInfo};
+use crate::structs::{
+    ent::{Ent, Team},
+    unit::Unit,
+    world::World,
+    world_info::WorldInfo,
+};
 
 use super::values::{MAP_HEIGHT, MAP_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 // Debug method; spawns some ents for testing
 pub fn spawn_debug_ents(world: &mut World, world_info: &mut WorldInfo) {
     let mut rng = rand::thread_rng();
-    for _ in 1..500 {
+    for i in 0..500 {
         let new_ent = Ent::new(
+            if i < 250 { Team::Player } else { Team::Cpu },
             100,
             Vector2D::<f32>::new(
                 rng.gen_range(MAP_WIDTH / 2 + 25..MAP_WIDTH / 2 + SCREEN_WIDTH) as f32,

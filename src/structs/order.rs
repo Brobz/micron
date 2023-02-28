@@ -1,7 +1,7 @@
 use sdl2::rect::Rect;
 use vector2d::Vector2D;
 
-use super::ent::EntID;
+use super::ent::{EntID, Team};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum OrderType {
@@ -21,6 +21,7 @@ pub struct Order {
 pub struct AttackTarget {
     pub ent_id: Option<EntID>,
     pub ent_rect: Option<Rect>,
+    pub ent_team: Option<Team>,
 }
 
 impl Order {

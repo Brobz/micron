@@ -11,13 +11,14 @@ use crate::consts::values::{
     BLACK_RGB, GREEN_RGB, HEALTH_BAR_HEIGHT, HEALTH_BAR_WIDTH, HEALTH_BAR_Y_FLOAT, RED_RGB,
 };
 
-use super::ent::{Ent, EntID};
+use super::ent::{Ent, EntID, Team};
 
 pub struct WorldInfo {
     ent_max_hp: HashMap<EntID, u32>, // Stores entity max hp,
     ent_hp: HashMap<EntID, f32>,     // Stores entity hp
     pub ent_rect_center: HashMap<EntID, Vector2D<f32>>, // Stores entity rect center
     ent_rect: HashMap<EntID, Rect>,  // Stores entity rect
+    ent_team: HashMap<EntID, Team>,  // Stores entity team
 }
 
 impl WorldInfo {
@@ -27,6 +28,7 @@ impl WorldInfo {
             ent_hp: HashMap::new(),
             ent_rect_center: HashMap::new(),
             ent_rect: HashMap::new(),
+            ent_team: HashMap::new(),
         }
     }
 
@@ -56,6 +58,7 @@ impl WorldInfo {
             Vector2D::new(ent_rect_center.x as f32, ent_rect_center.y as f32),
         );
         self.ent_rect.insert(ent.id, ent_rect);
+        self.ent_team.insert(ent.id, ent.team);
     }
 
     pub fn damage_ent(&mut self, ent_id: EntID, dmg: f32) {
@@ -86,6 +89,7 @@ impl WorldInfo {
             Vector2D::new(ent_rect_center.x as f32, ent_rect_center.y as f32),
         );
         self.ent_rect.insert(ent.id, ent_rect);
+        self.ent_team.insert(ent.id, ent.team);
     }
 
     pub fn clear_ent_by_id(&mut self, ent_id: EntID) {
@@ -105,6 +109,9 @@ impl WorldInfo {
         if self.ent_max_hp.contains_key(&ent_id) {
             self.ent_max_hp.remove(&ent_id);
         }
+        if self.ent_team.contains_key(&ent_id) {
+            self.ent_team.remove(&ent_id);
+        }
     }
 
     pub fn has_ent(&self, ent: &Ent) -> bool {
@@ -116,6 +123,10 @@ impl WorldInfo {
             return true;
         }
         false
+    }
+
+    pub fn get_ent_team_by_id(&self, ent_id: EntID) -> Option<Team> {
+        self.ent_team.get(&ent_id).copied()
     }
 
     pub fn draw_health_bars(&self, canvas: &mut Canvas<Window>) {

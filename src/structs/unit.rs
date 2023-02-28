@@ -3,20 +3,20 @@ use std::ops::{Index, IndexMut};
 use vector2d::Vector2D;
 
 use sdl2::pixels::Color;
-use sdl2::rect::{Point, Rect};
+use sdl2::rect::Point;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use crate::consts::helper::{draw_selection_border, draw_waypoint, get_direction_from_to};
 use crate::consts::values::{
-    ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, RED_RGB,
-    SELECTION_BORDER_COLOR, SELECTION_TARGET_BORDER_COLOR, TIME_STEP,
+    ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, BLACK_RGB, RED_RGB,
+    RED_RGBA_WEAK, SELECTION_BORDER_COLOR, SELECTION_TARGET_BORDER_COLOR, TIME_STEP,
 };
 use crate::ent::Ent;
 
 use crate::order::{Order, OrderType};
 
-use super::ent::EntID;
+use super::ent::Team;
 use super::order::AttackTarget;
 use super::world_info::WorldInfo;
 
@@ -106,11 +106,24 @@ impl Unit {
             }
             OrderType::AttackMove => {
                 // Check if any other unit is in range; if so, issue attack order to the closest one
-                let mut possible_closest_ent: Option<(EntID, Rect)> = None;
+                let mut closest_ent_in_range = AttackTarget {
+                    ent_id: None,
+                    ent_rect: None,
+                    ent_team: None,
+                };
+                let mut has_target_in_range = false;
                 let mut closest_ent_distance = self.range;
                 for (ent_id, ent_rect_center) in &world_info.ent_rect_center {
                     if *ent_id == self.ent.id {
                         // Cannot attack self; return early
+                        continue;
+                    }
+                    if world_info
+                        .get_ent_team_by_id(*ent_id)
+                        .expect(">> Could not find ent team by id")
+                        == self.ent.team
+                    {
+                        // Cannot attack an ent on the same team; return early
                         continue;
                     }
                     let distance = (self.ent.position
@@ -120,25 +133,30 @@ impl Unit {
                         // Too far away to attack; return early
                         continue;
                     }
+                    // At this point, we know there is at least one target in range
+                    has_target_in_range = true;
                     // Only attack the closest possible target
                     if distance < closest_ent_distance {
                         closest_ent_distance = distance;
-                        possible_closest_ent = Some((
-                            *ent_id,
-                            world_info
-                                .get_ent_rect_by_id(*ent_id)
-                                .expect(">> Could not find entity rect by id"),
-                        ));
+                        closest_ent_in_range = AttackTarget {
+                            ent_id: Some(*ent_id),
+                            ent_rect: Some(
+                                world_info
+                                    .get_ent_rect_by_id(*ent_id)
+                                    .expect(">> Could not find entity rect by id"),
+                            ),
+                            ent_team: world_info.get_ent_team_by_id(*ent_id),
+                        };
                     }
                 }
-                if let Some((closest_ent_id, closest_ent_rect)) = possible_closest_ent {
+                if has_target_in_range {
+                    let ent_rect = closest_ent_in_range
+                        .ent_rect
+                        .expect(">> Could not find ent rect by id");
                     let attack_order = Order::new(
                         OrderType::Attack,
-                        Vector2D::<f32>::new(closest_ent_rect.x as f32, closest_ent_rect.y as f32),
-                        AttackTarget {
-                            ent_id: Some(closest_ent_id),
-                            ent_rect: Some(closest_ent_rect),
-                        },
+                        Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
+                        closest_ent_in_range,
                     );
                     // Issue attack order to closest in-range target
                     // Bump it so that it takes precedence over this attack move order
@@ -159,7 +177,12 @@ impl Unit {
         }
         // If selected, draw selection border
         if self.ent.selected() {
-            draw_selection_border(canvas, &self.ent.get_rect(), SELECTION_TARGET_BORDER_COLOR);
+            let border_color = if self.ent.team == Team::Player {
+                SELECTION_BORDER_COLOR
+            } else {
+                RED_RGBA_WEAK
+            };
+            draw_selection_border(canvas, &self.ent.get_rect(), border_color);
         }
 
         // Draw attack lines (if attacking)
@@ -180,14 +203,14 @@ impl Unit {
             }
         }
         // Draw self (if alive)
-        canvas.set_draw_color(Color::RGB(50, 10, 50));
-        let rect: Rect = Rect::new(
-            self.ent.position.x as i32,
-            self.ent.position.y as i32,
-            self.ent.rect_size.x as u32,
-            self.ent.rect_size.y as u32,
-        );
+        canvas.set_draw_color(self.ent.color);
+        if self.ent.team == Team::Cpu {
+            canvas.set_draw_color(BLACK_RGB);
+        }
+        let rect = self.ent.get_rect();
         canvas.fill_rect(rect).ok().unwrap_or_default();
+        canvas.set_draw_color(BLACK_RGB);
+        canvas.draw_rect(rect).ok();
     }
 
     pub fn draw_orders(&self, canvas: &mut Canvas<Window>) {
@@ -236,7 +259,7 @@ impl Unit {
                             draw_selection_border(
                                 canvas,
                                 attack_target_rect,
-                                SELECTION_BORDER_COLOR,
+                                SELECTION_TARGET_BORDER_COLOR,
                             )
                         }
                     }
