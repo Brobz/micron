@@ -11,14 +11,14 @@ use crate::consts::values::{
     BLACK_RGB, GREEN_RGB, HEALTH_BAR_HEIGHT, HEALTH_BAR_WIDTH, HEALTH_BAR_Y_FLOAT, RED_RGB,
 };
 
-use super::ent::{Ent, EntID, Team};
+use super::ent::{Ent, EntID, Owner};
 
 pub struct WorldInfo {
     ent_max_hp: HashMap<EntID, u32>, // Stores entity max hp,
     ent_hp: HashMap<EntID, f32>,     // Stores entity hp
     pub ent_rect_center: HashMap<EntID, Vector2D<f32>>, // Stores entity rect center
     ent_rect: HashMap<EntID, Rect>,  // Stores entity rect
-    ent_team: HashMap<EntID, Team>,  // Stores entity team
+    ent_team: HashMap<EntID, Owner>, // Stores entity team
 }
 
 impl WorldInfo {
@@ -58,7 +58,7 @@ impl WorldInfo {
             Vector2D::new(ent_rect_center.x as f32, ent_rect_center.y as f32),
         );
         self.ent_rect.insert(ent.id, ent_rect);
-        self.ent_team.insert(ent.id, ent.team);
+        self.ent_team.insert(ent.id, ent.owner);
     }
 
     pub fn damage_ent(&mut self, ent_id: EntID, dmg: f32) {
@@ -89,7 +89,7 @@ impl WorldInfo {
             Vector2D::new(ent_rect_center.x as f32, ent_rect_center.y as f32),
         );
         self.ent_rect.insert(ent.id, ent_rect);
-        self.ent_team.insert(ent.id, ent.team);
+        self.ent_team.insert(ent.id, ent.owner);
     }
 
     pub fn clear_ent_by_id(&mut self, ent_id: EntID) {
@@ -125,7 +125,7 @@ impl WorldInfo {
         false
     }
 
-    pub fn get_ent_team_by_id(&self, ent_id: EntID) -> Option<Team> {
+    pub fn get_ent_owner_by_id(&self, ent_id: EntID) -> Option<Owner> {
         self.ent_team.get(&ent_id).copied()
     }
 

@@ -17,7 +17,7 @@ use crate::ent::Ent;
 
 use crate::order::{Order, OrderType};
 
-use super::ent::Team;
+use super::ent::Owner;
 use super::order::EntTarget;
 use super::world_info::WorldInfo;
 
@@ -110,7 +110,7 @@ impl Unit {
                 let mut closest_ent_in_range = EntTarget {
                     ent_id: None,
                     ent_rect: None,
-                    ent_team: None,
+                    ent_owner: None,
                 };
                 let mut has_target_in_range = false;
                 let mut closest_ent_distance = self.range;
@@ -120,9 +120,9 @@ impl Unit {
                         continue;
                     }
                     if world_info
-                        .get_ent_team_by_id(*ent_id)
+                        .get_ent_owner_by_id(*ent_id)
                         .expect(">> Could not find ent team by id")
-                        == self.ent.team
+                        == self.ent.owner
                     {
                         // Cannot attack an ent on the same team; return early
                         continue;
@@ -146,7 +146,7 @@ impl Unit {
                                     .get_ent_rect_by_id(*ent_id)
                                     .expect(">> Could not find entity rect by id"),
                             ),
-                            ent_team: world_info.get_ent_team_by_id(*ent_id),
+                            ent_owner: world_info.get_ent_owner_by_id(*ent_id),
                         };
                     }
                 }
@@ -197,7 +197,7 @@ impl Unit {
         }
         // If selected, draw selection border
         if self.ent.selected() {
-            let border_color = if self.ent.team == Team::Player {
+            let border_color = if self.ent.owner == Owner::Player {
                 SELECTION_BORDER_COLOR
             } else {
                 RED_RGBA_WEAK
@@ -224,7 +224,7 @@ impl Unit {
         }
         // Draw self (if alive)
         canvas.set_draw_color(self.ent.color);
-        if self.ent.team == Team::Cpu {
+        if self.ent.owner == Owner::Cpu {
             canvas.set_draw_color(BLACK_RGB);
         }
         let rect = self.ent.get_rect();
@@ -243,9 +243,11 @@ impl Unit {
                 match order.order_type {
                     OrderType::Move => canvas.set_draw_color(Color::RGB(0, 150, 0)),
                     OrderType::Attack | OrderType::AttackMove => {
-                        canvas.set_draw_color(Color::RGB(100, 0, 0))
+                        canvas.set_draw_color(SELECTION_ATTACK_TARGET_BORDER_COLOR)
                     }
-                    OrderType::Follow => canvas.set_draw_color(Color::RGB(0, 100, 100)),
+                    OrderType::Follow => {
+                        canvas.set_draw_color(SELECTION_FOLLOW_TARGET_BORDER_COLOR)
+                    }
                 }
                 if i == 0 {
                     // If this is the next order, draw  a line from unit to waypoint

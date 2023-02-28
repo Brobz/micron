@@ -5,7 +5,7 @@ use crate::consts::debug_flags::DEBUG_CAN_CONTROL_CPU;
 
 use super::{
     camera::Camera,
-    ent::Team,
+    ent::Owner,
     order::{EntTarget, Order, OrderType},
     selection::MouseCommand,
     world::World,
@@ -109,7 +109,7 @@ impl Input {
         let mut attack_target = EntTarget {
             ent_id: None,
             ent_rect: None,
-            ent_team: None,
+            ent_owner: None,
         };
         // Flag to know if we found at least one target
         let mut found_target = false;
@@ -124,7 +124,7 @@ impl Input {
                 attack_target = EntTarget {
                     ent_id: Some(unit.ent.id),
                     ent_rect: Some(unit.ent.get_rect()),
-                    ent_team: Some(unit.ent.team),
+                    ent_owner: Some(unit.ent.owner),
                 };
                 found_target = true;
                 break;
@@ -142,7 +142,7 @@ impl Input {
                     MouseCommand::Attack => {
                         for unit in &mut world.units {
                             if unit.ent.selected()
-                                && (unit.ent.team == Team::Player || DEBUG_CAN_CONTROL_CPU)
+                                && (unit.ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                             {
                                 if !found_target {
                                     // No attack target found; Issue attack move order
@@ -155,7 +155,7 @@ impl Input {
                                         EntTarget {
                                             ent_id: None,
                                             ent_rect: None,
-                                            ent_team: None,
+                                            ent_owner: None,
                                         },
                                     );
                                     unit.add_order(attack_move_order, !world.selection.queueing);
@@ -169,9 +169,9 @@ impl Input {
                                         continue;
                                     }
                                     if attack_target
-                                        .ent_team
+                                        .ent_owner
                                         .expect(">> Could not get entity team from attack target")
-                                        == unit.ent.team
+                                        == unit.ent.owner
                                     {
                                         // Cannot attack an ent on the same team!
                                         continue;
@@ -186,8 +186,8 @@ impl Input {
                                             ent_id: Some(attack_target_id),
                                             ent_rect: world_info
                                                 .get_ent_rect_by_id(attack_target_id),
-                                            ent_team: world_info
-                                                .get_ent_team_by_id(attack_target_id),
+                                            ent_owner: world_info
+                                                .get_ent_owner_by_id(attack_target_id),
                                         },
                                     );
                                     unit.add_order(attack_order, !world.selection.queueing);
@@ -216,7 +216,7 @@ impl Input {
                         attack_target = EntTarget {
                             ent_id: Some(unit.ent.id),
                             ent_rect: Some(unit.ent.get_rect()),
-                            ent_team: Some(unit.ent.team),
+                            ent_owner: Some(unit.ent.owner),
                         };
                         break;
                     }
@@ -224,7 +224,7 @@ impl Input {
 
                 for unit in &mut world.units {
                     if unit.ent.selected()
-                        && (unit.ent.team == Team::Player || DEBUG_CAN_CONTROL_CPU)
+                        && (unit.ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                     {
                         if !found_target {
                             // No attack target found; Issue move order
@@ -237,7 +237,7 @@ impl Input {
                                 EntTarget {
                                     ent_id: None,
                                     ent_rect: None,
-                                    ent_team: None,
+                                    ent_owner: None,
                                 },
                             );
                             unit.add_order(move_order, !world.selection.queueing);
@@ -251,9 +251,9 @@ impl Input {
                             }
                             // At this point, we know we will either attack or follow this target, depending on it's team
                             let new_order_type = if attack_target
-                                .ent_team
+                                .ent_owner
                                 .expect(">> Could not get identity team from attack target")
-                                == unit.ent.team
+                                == unit.ent.owner
                             {
                                 OrderType::Follow
                             } else {
@@ -269,7 +269,7 @@ impl Input {
                                 EntTarget {
                                     ent_id: Option::Some(attack_target_id),
                                     ent_rect: world_info.get_ent_rect_by_id(attack_target_id),
-                                    ent_team: world_info.get_ent_team_by_id(attack_target_id),
+                                    ent_owner: world_info.get_ent_owner_by_id(attack_target_id),
                                 },
                             );
                             unit.add_order(new_order, !world.selection.queueing);

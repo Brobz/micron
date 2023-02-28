@@ -9,7 +9,7 @@
 //      ==> This MASSIVELY boosts performace, not drawing orders for 1k units eliminates all lag when queuing. this would effectively cut 90% of the orders to draw out
 
 //  1. Add teams, follow & auto attack
-//      0. Add "state" property to unit, Resting is default; If resting, attack any enemy unit that is in range (closest one).
+//      0. Add "state" property to ENT, Resting is default; If resting, attack any enemy unit that is in range (closest one).
 //         When moving, state should be Moving. when attack moving, it could be Resting for now. Following could be resting maybe?
 
 //  2. Test collision feel & benchmark

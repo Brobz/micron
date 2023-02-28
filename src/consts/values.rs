@@ -49,7 +49,7 @@ pub const SELECTION_BOX_COLOR: Color = Color::RGBA(50, 150, 25, 100);
 // Color of the entity selection attack target border, with alpha
 pub const SELECTION_ATTACK_TARGET_BORDER_COLOR: Color = Color::RGBA(150, 0, 0, 225);
 // Color of the entity selection follow target border, with alpha
-pub const SELECTION_FOLLOW_TARGET_BORDER_COLOR: Color = Color::RGBA(0, 150, 150, 225);
+pub const SELECTION_FOLLOW_TARGET_BORDER_COLOR: Color = Color::RGBA(255, 255, 153, 225);
 // Color of the entity selection border, with alpha
 pub const SELECTION_BORDER_COLOR: Color = Color::RGBA(50, 225, 50, 225);
 

@@ -7,7 +7,7 @@ use vector2d::Vector2D;
 use crate::consts::helper::CURRENT_ENT_ID;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub enum Team {
+pub enum Owner {
     Player,
     Cpu,
 }
@@ -23,12 +23,12 @@ pub struct Ent {
     pub max_hp: u32,
     pub hp: f32,
     pub color: Color,
-    pub team: Team,
+    pub owner: Owner,
     selected: bool,
 }
 
 impl Ent {
-    pub fn new(team: Team, max_hp: u32, position: Vector2D<f32>, rect_size: Point) -> Self {
+    pub fn new(owner: Owner, max_hp: u32, position: Vector2D<f32>, rect_size: Point) -> Self {
         unsafe {
             CURRENT_ENT_ID.0 += 1;
         }
@@ -40,7 +40,7 @@ impl Ent {
             max_hp,
             hp: max_hp as f32,
             color: Color::RGB(0, 100, 100),
-            team,
+            owner,
             selected: false,
         }
     }

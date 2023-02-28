@@ -8,7 +8,7 @@ use crate::consts::helper::find_selection_box_translation;
 use crate::consts::values::SELECTION_BOX_COLOR;
 use crate::Unit;
 
-use super::ent::Team;
+use super::ent::Owner;
 
 pub enum MouseCommand {
     Select,
@@ -67,7 +67,7 @@ impl Selection {
                     // Flag that this selection grabbed at least one ent
                     at_least_one_selected = true;
                     // Check if this ent is player-controlled
-                    if unit.ent.team == Team::Player {
+                    if unit.ent.owner == Owner::Player {
                         at_least_one_from_player_selected = true;
                     }
                     // Mark this unit as selectable
@@ -85,7 +85,7 @@ impl Selection {
                 }
             }
             for unit in units_to_select {
-                if unit.ent.team == Team::Player || !at_least_one_from_player_selected {
+                if unit.ent.owner == Owner::Player || !at_least_one_from_player_selected {
                     unit.ent.select();
                 } else {
                     unit.ent.deselect();
