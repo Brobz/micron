@@ -41,7 +41,10 @@ pub fn find_selection_box_translation(curr_pos: Point, origin: Point) -> Point {
 // This method renders an order waypoint to the screen
 pub fn draw_waypoint(order: &Order, canvas: &mut Canvas<Window>) {
     let waypoint_rect: Rect = Rect::from_center(
-        Point::new(order.move_target.x as i32, order.move_target.y as i32),
+        Point::new(
+            order.current_move_target.x as i32,
+            order.current_move_target.y as i32,
+        ),
         5,
         5,
     );

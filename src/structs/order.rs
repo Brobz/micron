@@ -6,6 +6,7 @@ use super::ent::{EntID, Team};
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum OrderType {
     Move,
+    Follow,
     Attack,
     AttackMove,
 }
@@ -14,11 +15,11 @@ pub struct Order {
     pub order_type: OrderType,
     pub executed: bool,
     pub completed: bool,
-    pub move_target: Vector2D<f32>,
-    pub attack_target: AttackTarget,
+    pub current_move_target: Vector2D<f32>,
+    pub ent_target: EntTarget,
 }
 
-pub struct AttackTarget {
+pub struct EntTarget {
     pub ent_id: Option<EntID>,
     pub ent_rect: Option<Rect>,
     pub ent_team: Option<Team>,
@@ -27,15 +28,15 @@ pub struct AttackTarget {
 impl Order {
     pub const fn new(
         order_type: OrderType,
-        move_target: Vector2D<f32>,
-        attack_target: AttackTarget,
+        current_move_target: Vector2D<f32>,
+        ent_target: EntTarget,
     ) -> Self {
         Self {
             order_type,
             executed: false,
             completed: false,
-            move_target,
-            attack_target,
+            current_move_target,
+            ent_target,
         }
     }
 

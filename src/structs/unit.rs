@@ -9,15 +9,16 @@ use sdl2::video::Window;
 
 use crate::consts::helper::{draw_selection_border, draw_waypoint, get_direction_from_to};
 use crate::consts::values::{
-    ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, BLACK_RGB, RED_RGB,
-    RED_RGBA_WEAK, SELECTION_BORDER_COLOR, SELECTION_TARGET_BORDER_COLOR, TIME_STEP,
+    ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, BLACK_RGB,
+    FOLLOW_ORDER_HOVER_DISTANCE, RED_RGB, RED_RGBA_WEAK, SELECTION_ATTACK_TARGET_BORDER_COLOR,
+    SELECTION_BORDER_COLOR, SELECTION_FOLLOW_TARGET_BORDER_COLOR, TIME_STEP,
 };
 use crate::ent::Ent;
 
 use crate::order::{Order, OrderType};
 
 use super::ent::Team;
-use super::order::AttackTarget;
+use super::order::EntTarget;
 use super::world_info::WorldInfo;
 
 pub struct Unit {
@@ -76,7 +77,7 @@ impl Unit {
                 ));
             }
             OrderType::Attack => {
-                let possible_attack_target = &next_order.attack_target;
+                let possible_attack_target = &next_order.ent_target;
                 if possible_attack_target.ent_id.is_none() {
                     return;
                 }
@@ -106,7 +107,7 @@ impl Unit {
             }
             OrderType::AttackMove => {
                 // Check if any other unit is in range; if so, issue attack order to the closest one
-                let mut closest_ent_in_range = AttackTarget {
+                let mut closest_ent_in_range = EntTarget {
                     ent_id: None,
                     ent_rect: None,
                     ent_team: None,
@@ -133,12 +134,12 @@ impl Unit {
                         // Too far away to attack; return early
                         continue;
                     }
-                    // At this point, we know there is at least one target in range
-                    has_target_in_range = true;
                     // Only attack the closest possible target
                     if distance < closest_ent_distance {
+                        // At this point, we know there is at least one target in range
+                        has_target_in_range = true;
                         closest_ent_distance = distance;
-                        closest_ent_in_range = AttackTarget {
+                        closest_ent_in_range = EntTarget {
                             ent_id: Some(*ent_id),
                             ent_rect: Some(
                                 world_info
@@ -167,7 +168,26 @@ impl Unit {
                     self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
                 }
             }
+            OrderType::Follow => {
+                // Unit should stop moving if it gets within a certain distance of it's follow target
+                let rect_center = world_info
+                    .get_ent_rect_center_by_id(self.ent.id)
+                    .expect(">> Could not find entity rect center by id");
+                if (next_order.current_move_target - rect_center).length()
+                    <= FOLLOW_ORDER_HOVER_DISTANCE
+                {
+                    self.clear_velocity();
+                } else {
+                    self.set_velocity(next_order_direction_option.expect(
+                        ">> Could not set unit velocity; current order did not produce a direction vector",
+                    ));
+                }
+                self.is_attacking = false;
+            }
         }
+
+        // Mark order as executed
+        self.orders.index_mut(0).execute();
     }
 
     pub fn draw(&self, canvas: &mut Canvas<Window>) {
@@ -194,8 +214,8 @@ impl Unit {
                     .draw_line(
                         self.ent.get_rect().center(),
                         Point::new(
-                            attack_order.move_target.x as i32,
-                            attack_order.move_target.y as i32,
+                            attack_order.current_move_target.x as i32,
+                            attack_order.current_move_target.y as i32,
                         ),
                     )
                     .ok()
@@ -225,27 +245,34 @@ impl Unit {
                     OrderType::Attack | OrderType::AttackMove => {
                         canvas.set_draw_color(Color::RGB(100, 0, 0))
                     }
+                    OrderType::Follow => canvas.set_draw_color(Color::RGB(0, 100, 100)),
                 }
                 if i == 0 {
                     // If this is the next order, draw  a line from unit to waypoint
                     canvas
                         .draw_line(
                             self.ent.get_rect().center(),
-                            Point::new(order.move_target.x as i32, order.move_target.y as i32),
+                            Point::new(
+                                order.current_move_target.x as i32,
+                                order.current_move_target.y as i32,
+                            ),
                         )
                         .ok()
                         .unwrap_or_default();
                 }
                 // Else, draw line from last waypoint to this one
                 else {
-                    let previous_order_target = self.orders.index(i - 1).move_target;
+                    let previous_order_target = self.orders.index(i - 1).current_move_target;
                     canvas
                         .draw_line(
                             Point::new(
                                 previous_order_target.x as i32,
                                 previous_order_target.y as i32,
                             ),
-                            Point::new(order.move_target.x as i32, order.move_target.y as i32),
+                            Point::new(
+                                order.current_move_target.x as i32,
+                                order.current_move_target.y as i32,
+                            ),
                         )
                         .ok()
                         .unwrap_or_default();
@@ -255,17 +282,28 @@ impl Unit {
                     // In case of attack order, draw red selection border on attacked ent
                     // (if target is still alive)
                     OrderType::Attack => {
-                        if let Some(attack_target_rect) = &order.attack_target.ent_rect {
+                        if let Some(attack_target_rect) = &order.ent_target.ent_rect {
                             draw_selection_border(
                                 canvas,
                                 attack_target_rect,
-                                SELECTION_TARGET_BORDER_COLOR,
+                                SELECTION_ATTACK_TARGET_BORDER_COLOR,
                             )
                         }
                     }
                     // In case of move or attack move order, draw waypoint
                     OrderType::Move | OrderType::AttackMove => {
                         draw_waypoint(order, canvas);
+                    }
+                    // In case of follow order, draw yellow selection border on followed ent
+                    // (if target is still alive)
+                    OrderType::Follow => {
+                        if let Some(follow_target_rect) = &order.ent_target.ent_rect {
+                            draw_selection_border(
+                                canvas,
+                                follow_target_rect,
+                                SELECTION_FOLLOW_TARGET_BORDER_COLOR,
+                            )
+                        }
                     }
                 }
             }
@@ -305,17 +343,17 @@ impl Unit {
     }
 
     // If there is an order in the vector, grab it, mark it as executed, and process it's effects
-    pub fn execute_next_order(&mut self) -> (Option<&mut Order>, Option<Vector2D<f32>>) {
+    pub fn execute_next_order(&self) -> (Option<&Order>, Option<Vector2D<f32>>) {
         if !self.orders.is_empty() {
-            let next_order = self.orders.index_mut(0);
-            let copy_of_target = next_order.move_target;
+            let next_order = self.orders.index(0);
+            let copy_of_target = next_order.current_move_target;
             let rect_center = self.ent.get_rect().center();
             let new_velocity = get_direction_from_to(
                 Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32),
                 copy_of_target,
                 self.speed,
             );
-            next_order.execute();
+
             return (Some(next_order), Some(new_velocity));
         }
         (None, None)
@@ -330,10 +368,13 @@ impl Unit {
 
             if !next_order.completed && next_order.executed {
                 match next_order.order_type {
-                    OrderType::Attack => {
+                    OrderType::Attack | OrderType::Follow => {
+                        // A follow order can never be completed!
+                        // It can only get cleard or canceled (if the followed unit dies)
+                        // To complete an attack order, the target must be DEAD!
                         if !world_info.has_ent_by_id(
                             next_order
-                                .attack_target
+                                .ent_target
                                 .ent_id
                                 .expect(">> Could not find attack target id from current order"),
                         ) {
@@ -349,8 +390,9 @@ impl Unit {
                         }
                     }
                     OrderType::Move | OrderType::AttackMove => {
+                        // To complete either a move or attack move order, unit must reach it's destination
                         let rect_center = self.ent.get_rect().center();
-                        if (next_order.move_target
+                        if (next_order.current_move_target
                             - Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32))
                         .length()
                             <= 3.0

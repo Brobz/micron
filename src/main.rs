@@ -9,8 +9,8 @@
 //      ==> This MASSIVELY boosts performace, not drawing orders for 1k units eliminates all lag when queuing. this would effectively cut 90% of the orders to draw out
 
 //  1. Add teams, follow & auto attack
-//      0. Add Follow order type; just a move order that updates its move target every tick to follow a target ent
-//      1. Add "state" property to unit, Resting is default; If resting, attack any enemy unit that is in range (closest one). When moving, state should be Moving. when attack moving, it could be Resting for now. Following could be resting maybe?
+//      0. Add "state" property to unit, Resting is default; If resting, attack any enemy unit that is in range (closest one).
+//         When moving, state should be Moving. when attack moving, it could be Resting for now. Following could be resting maybe?
 
 //  2. Test collision feel & benchmark
 //      0. Add collision checks for units (disallow intersections, no bouncing at first) and test performance compared to no collision tests
@@ -110,24 +110,25 @@ fn main() -> Result<(), String> {
         // Tick orders
         for unit in &mut world.units {
             for order in &mut unit.orders {
-                // If this order has no attack target, skip it
-                if order.attack_target.ent_id.is_none() {
+                // If this order has no ent target, skip it
+                if order.ent_target.ent_id.is_none() {
                     continue;
                 }
-                // Grab the attack target EntID
-                let attack_target_id = order
-                    .attack_target
+                // Grab the target EntID
+                let ent_target_id = order
+                    .ent_target
                     .ent_id
                     .expect(">> Could not find attack target id for order");
 
-                // For every attack order, update it's target position to the attacked entities position (if available)
-                if let Some(target_position) = world_info.get_ent_poisition_by_id(attack_target_id)
-                {
-                    order.move_target = target_position;
+                // For every order, update it's target position to the attacked entities position (if available)
+                if let Some(target_position) = world_info.get_ent_poisition_by_id(ent_target_id) {
+                    order.current_move_target = target_position;
                 }
 
                 // Also update the attack target rect
-                order.attack_target.ent_rect = world_info.get_ent_rect_by_id(attack_target_id);
+                order.ent_target.ent_rect = world_info.get_ent_rect_by_id(ent_target_id);
+
+                // Note: no need to update target's team! for now...
             }
         }
 

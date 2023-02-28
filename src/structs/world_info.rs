@@ -129,6 +129,10 @@ impl WorldInfo {
         self.ent_team.get(&ent_id).copied()
     }
 
+    pub fn get_ent_rect_center_by_id(&self, ent_id: EntID) -> Option<Vector2D<f32>> {
+        self.ent_rect_center.get(&ent_id).copied()
+    }
+
     pub fn draw_health_bars(&self, canvas: &mut Canvas<Window>) {
         for ent_id in self.ent_hp.keys() {
             let health = self

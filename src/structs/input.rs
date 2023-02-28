@@ -1,10 +1,12 @@
 use sdl2::{event::Event, keyboard::Keycode, mouse::MouseButton, rect::Point, EventPump};
 use vector2d::Vector2D;
 
+use crate::consts::debug_flags::DEBUG_CAN_CONTROL_CPU;
+
 use super::{
     camera::Camera,
     ent::Team,
-    order::{AttackTarget, Order, OrderType},
+    order::{EntTarget, Order, OrderType},
     selection::MouseCommand,
     world::World,
     world_info::WorldInfo,
@@ -104,7 +106,7 @@ impl Input {
         // Then, get scaled mouse position
         let scaled_mouse_pos = camera.get_scaled_mouse_pos();
         // This right click might issue an attack order, we will need to store its possible target
-        let mut attack_target = AttackTarget {
+        let mut attack_target = EntTarget {
             ent_id: None,
             ent_rect: None,
             ent_team: None,
@@ -119,7 +121,7 @@ impl Input {
                 .get_rect()
                 .has_intersection(camera.get_scaled_mouse_rect())
             {
-                attack_target = AttackTarget {
+                attack_target = EntTarget {
                     ent_id: Some(unit.ent.id),
                     ent_rect: Some(unit.ent.get_rect()),
                     ent_team: Some(unit.ent.team),
@@ -139,7 +141,9 @@ impl Input {
                     }
                     MouseCommand::Attack => {
                         for unit in &mut world.units {
-                            if unit.ent.selected() && unit.ent.team == Team::Player {
+                            if unit.ent.selected()
+                                && (unit.ent.team == Team::Player || DEBUG_CAN_CONTROL_CPU)
+                            {
                                 if !found_target {
                                     // No attack target found; Issue attack move order
                                     let attack_move_order = Order::new(
@@ -148,7 +152,7 @@ impl Input {
                                             scaled_mouse_pos.x as f32,
                                             scaled_mouse_pos.y as f32,
                                         ),
-                                        AttackTarget {
+                                        EntTarget {
                                             ent_id: None,
                                             ent_rect: None,
                                             ent_team: None,
@@ -178,7 +182,7 @@ impl Input {
                                             scaled_mouse_pos.x as f32,
                                             scaled_mouse_pos.y as f32,
                                         ),
-                                        AttackTarget {
+                                        EntTarget {
                                             ent_id: Some(attack_target_id),
                                             ent_rect: world_info
                                                 .get_ent_rect_by_id(attack_target_id),
@@ -209,7 +213,7 @@ impl Input {
                         .get_rect()
                         .has_intersection(camera.get_scaled_mouse_rect())
                     {
-                        attack_target = AttackTarget {
+                        attack_target = EntTarget {
                             ent_id: Some(unit.ent.id),
                             ent_rect: Some(unit.ent.get_rect()),
                             ent_team: Some(unit.ent.team),
@@ -219,7 +223,9 @@ impl Input {
                 }
 
                 for unit in &mut world.units {
-                    if unit.ent.selected() && unit.ent.team == Team::Player {
+                    if unit.ent.selected()
+                        && (unit.ent.team == Team::Player || DEBUG_CAN_CONTROL_CPU)
+                    {
                         if !found_target {
                             // No attack target found; Issue move order
                             let move_order = Order::new(
@@ -228,7 +234,7 @@ impl Input {
                                     scaled_mouse_pos.x as f32,
                                     scaled_mouse_pos.y as f32,
                                 ),
-                                AttackTarget {
+                                EntTarget {
                                     ent_id: None,
                                     ent_rect: None,
                                     ent_team: None,
@@ -243,29 +249,30 @@ impl Input {
                                 // Cannot attack yourself!
                                 continue;
                             }
-                            // Check if this target is on the opposing team
-                            if attack_target
+                            // At this point, we know we will either attack or follow this target, depending on it's team
+                            let new_order_type = if attack_target
                                 .ent_team
                                 .expect(">> Could not get identity team from attack target")
                                 == unit.ent.team
                             {
-                                // Cannot attack an ent on the same team!
-                                // TODO: Issue follow order here
-                                continue;
-                            }
-                            let attack_order = Order::new(
-                                OrderType::Attack,
+                                OrderType::Follow
+                            } else {
+                                OrderType::Attack
+                            };
+
+                            let new_order = Order::new(
+                                new_order_type,
                                 Vector2D::<f32>::new(
                                     scaled_mouse_pos.x as f32,
                                     scaled_mouse_pos.y as f32,
                                 ),
-                                AttackTarget {
+                                EntTarget {
                                     ent_id: Option::Some(attack_target_id),
                                     ent_rect: world_info.get_ent_rect_by_id(attack_target_id),
                                     ent_team: world_info.get_ent_team_by_id(attack_target_id),
                                 },
                             );
-                            unit.add_order(attack_order, !world.selection.queueing);
+                            unit.add_order(new_order, !world.selection.queueing);
                         }
                     }
                 }
