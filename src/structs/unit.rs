@@ -316,6 +316,10 @@ impl Unit {
                     }
                 }
             }
+            OrderType::HoldPosition => {
+                self.hold_position();
+                did_complete_order = true;
+            }
         }
 
         // Check if we can complete the order
@@ -376,6 +380,7 @@ impl Unit {
                     OrderType::Follow => {
                         canvas.set_draw_color(SELECTION_FOLLOW_TARGET_BORDER_COLOR)
                     }
+                    OrderType::HoldPosition => canvas.set_draw_color(ORANGE_RGB),
                 }
                 if i == 0 {
                     // If this is the next order, draw  a line from unit to waypoint
@@ -435,6 +440,8 @@ impl Unit {
                             )
                         }
                     }
+                    // In case of hold position, do nothing for now
+                    OrderType::HoldPosition => draw_waypoint(order, canvas),
                 }
             }
         }
@@ -540,7 +547,11 @@ impl Unit {
                     // To complete an attack or lazy attack order, the target must be DEAD!
                     // That gets checked right before trying to attack it during execution,
                     // So it can get completed and cleaned up there as well.
-                    OrderType::LazyAttack | OrderType::Attack | OrderType::Follow => (),
+                    // Same thing with HoldPosition, gets cleared right after execution.
+                    OrderType::LazyAttack
+                    | OrderType::Attack
+                    | OrderType::Follow
+                    | OrderType::HoldPosition => (),
                 }
             }
         }
@@ -549,6 +560,12 @@ impl Unit {
     // This method removes completed orders from the unit's order vector
     fn clear_completed_orders(&mut self) {
         self.orders.retain(|order| !order.completed);
+    }
+
+    pub fn clear_all_but_current_order(&mut self) {
+        if self.orders.len() > 1 {
+            self.orders.drain(1..self.orders.len());
+        }
     }
 
     // This method executes a stop order to the unit
@@ -566,9 +583,9 @@ impl Unit {
     // This method executes a hold position order to the unit
     // Hold position order clears velocity, and sets state to Hold
     // It also clears orders, meaning it removes itself. pretty handy.
-    pub fn hold_position(&mut self) {
-        // Cancel all orders
-        self.clear_orders();
+    fn hold_position(&mut self) {
+        // Cancel all orders, but the hold position order so it gets cleared normally
+        self.clear_all_but_current_order();
         // Stop moving
         self.clear_velocity();
         // Set state to hold

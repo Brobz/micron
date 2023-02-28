@@ -8,7 +8,11 @@ use vector2d::Vector2D;
 
 use crate::{
     consts::values::{MAX_SELECTION_BORDER_SIZE, MIN_SELECTION_BORDER_SIZE},
-    structs::{ent::EntID, order::Order},
+    structs::{
+        ent::{EntID, Owner},
+        order::Order,
+        world::World,
+    },
 };
 
 use super::values::SELECTION_BORDER_RATIO;
@@ -75,4 +79,19 @@ pub fn draw_selection_border(canvas: &mut Canvas<Window>, ent_rect: &Rect, color
         .ok()
         .unwrap_or_default();
     canvas.set_blend_mode(BlendMode::None);
+}
+
+// Selects all (if any) player owned army units
+// Note: replaces current selection)
+pub fn select_all_army(world: &mut World) {
+    for unit in &mut world.units {
+        if unit.ent.owner == Owner::Player {
+            // TODO: FOR NOW, all units are army; soon this will change
+            //      if unit.type is army type or whatever
+            unit.ent.select();
+        } else {
+            unit.ent.deselect();
+        }
+    }
+    world.selection.open = false;
 }

@@ -2,16 +2,14 @@
 // (for early rust && SDL2)
 
 // TODO:
-
 //  Some important backlog stuff
+//  ??. Change selection bools to a enum State type of deal (check clipy::pedantic)
 //  ??. Make standard methods for repeated ocurrances in unit logic, such as checking distance between two positions, the attack order computations, etc..
 //  ??. Limit framerate somehow (try using sdl2_timing)?
 //  ??. Figure out a way to only draw required orders (i.e. a selection of units gets shift moved around; all but the line from unit to first waypoint will be redrawn uselessly)
 //      ==> This MASSIVELY boosts performace, not drawing orders for 1k units eliminates all lag when queuing. this would effectively cut 90% of the orders to draw out
 
-// Some Current Stuff
-//  0. Add select all army hotkey (F2)
-
+// Some current stuff
 //  1. Test collision feel & benchmark
 //      0. Add collision checks for units (disallow intersections, no bouncing at first) and test performance compared to no collision tests
 //      1. Maybe try a Mutalisk style thing - can overlap freely while moving, but slowly unbunch until completely separated when resting

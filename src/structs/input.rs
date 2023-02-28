@@ -1,7 +1,7 @@
 use sdl2::{event::Event, keyboard::Keycode, mouse::MouseButton, rect::Point, EventPump};
 use vector2d::Vector2D;
 
-use crate::consts::debug_flags::DEBUG_CAN_CONTROL_CPU;
+use crate::consts::{debug_flags::DEBUG_CAN_CONTROL_CPU, helper::select_all_army};
 
 use super::{
     camera::Camera,
@@ -90,10 +90,42 @@ impl Input {
                         if unit.ent.selected()
                             && (unit.ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                         {
+                            // If queueing, need to figure out if this is the first order of the chain or not
+                            // To know what to render
+                            let mut hold_position_spot: Option<Vector2D<f32>> = None;
+                            if world.selection.queueing {
+                                if unit.orders.is_empty() {
+                                    hold_position_spot = Some(unit.ent.position);
+                                } else {
+                                    hold_position_spot = Some(unit
+                                        .orders
+                                        .last()
+                                        .expect(
+                                            ">> Could not get order even though list is not empty?",
+                                        )
+                                        .current_move_target)
+                                }
+                            }
                             // Issue hold position order to owned selected units
-                            unit.hold_position();
+                            let hold_position_order = Order::new(
+                                OrderType::HoldPosition,
+                                hold_position_spot.unwrap_or(unit.ent.position),
+                                EntTarget {
+                                    ent_id: None,
+                                    ent_rect: None,
+                                    ent_owner: None,
+                                },
+                            );
+                            unit.add_order(hold_position_order, !world.selection.queueing);
                         }
                     }
+                }
+
+                Event::KeyDown {
+                    keycode: Some(Keycode::F2),
+                    ..
+                } => {
+                    select_all_army(world);
                 }
 
                 _ => {}

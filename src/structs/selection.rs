@@ -92,6 +92,7 @@ impl Selection {
                 }
             }
             self.just_closed = false;
+            self.origin = mouse_position;
         } else {
             self.origin = mouse_position;
         }

@@ -10,6 +10,7 @@ pub enum OrderType {
     Attack,
     LazyAttack,
     AttackMove,
+    HoldPosition,
 }
 
 pub struct Order {
