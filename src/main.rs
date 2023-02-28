@@ -8,9 +8,10 @@
 //  ??. Figure out a way to only draw required orders (i.e. a selection of units gets shift moved around; all but the line from unit to first waypoint will be redrawn uselessly)
 //      ==> This MASSIVELY boosts performace, not drawing orders for 1k units eliminates all lag when queuing. this would effectively cut 90% of the orders to draw out
 
-//  1. Add teams, follow & auto attack
-//      0. Add "state" property to ENT, Resting is default; If resting, attack any enemy unit that is in range (closest one).
-//         When moving, state should be Moving. when attack moving, it could be Resting for now. Following could be resting maybe?
+// Current stuff
+//  1. Add hold position order (H) and stop order (S)
+//      0. Hold Position = State Alert, issue LazyAttack (attack while in range, no following)
+//      1. Stop = State Busy, clear orders
 
 //  2. Test collision feel & benchmark
 //      0. Add collision checks for units (disallow intersections, no bouncing at first) and test performance compared to no collision tests
@@ -25,8 +26,7 @@
 
 //  Some less important backlog stuff
 //  ??. Add some logic to allow a unit to move while attacking (would need some sort of anchor target system; maintain target while in range, lose it when out of range)
-//  ??. Add stop order (S) [stop order + attack order = nice combo (need to figure out atack move first)]
-//  ??. Add patrol order (R)
+//  ??. Add patrol order (R) ?
 //  ??. Fix zoom out jankiness (would like it for the zoom behaviour to be reversed when zooming out... why is this so hard)
 
 mod consts;

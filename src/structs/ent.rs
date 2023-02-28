@@ -13,6 +13,12 @@ pub enum Owner {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum State {
+    Alert, // No pending orders; Will latch on to closest enemy in range. Idle.
+    Busy,  // Busy; Will continue to do whatever until it's done or cancelled (or death).
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct EntID(pub u64);
 
 pub struct Ent {
@@ -24,6 +30,7 @@ pub struct Ent {
     pub hp: f32,
     pub color: Color,
     pub owner: Owner,
+    pub state: State,
     selected: bool,
 }
 
@@ -41,6 +48,7 @@ impl Ent {
             hp: max_hp as f32,
             color: Color::RGB(0, 100, 100),
             owner,
+            state: State::Alert,
             selected: false,
         }
     }

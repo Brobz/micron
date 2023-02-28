@@ -14,9 +14,9 @@ use super::values::{MAP_HEIGHT, MAP_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH};
 // Debug method; spawns some ents for testing
 pub fn spawn_debug_ents(world: &mut World, world_info: &mut WorldInfo) {
     let mut rng = rand::thread_rng();
-    for i in 0..500 {
+    for i in 0..10 {
         let new_ent = Ent::new(
-            if i < 250 { Owner::Player } else { Owner::Cpu },
+            if i < 5 { Owner::Player } else { Owner::Cpu },
             100,
             Vector2D::<f32>::new(
                 rng.gen_range(MAP_WIDTH / 2 + 25..MAP_WIDTH / 2 + SCREEN_WIDTH) as f32,

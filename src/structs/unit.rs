@@ -17,7 +17,7 @@ use crate::ent::Ent;
 
 use crate::order::{Order, OrderType};
 
-use super::ent::Owner;
+use super::ent::{Owner, State};
 use super::order::EntTarget;
 use super::world_info::WorldInfo;
 
@@ -57,12 +57,79 @@ impl Unit {
         // Apply velocity (if any)
         self.apply_velocity();
 
+        // Check for alert state
+        // An alert unit has no pending orders in its queue
+        // It should actively seek combat with enemy units that appear in its range
+        if self.ent.state == State::Alert {
+            // Check if any other unit is in range; if so, issue attack order to the closest one
+            let mut closest_ent_in_range = EntTarget {
+                ent_id: None,
+                ent_rect: None,
+                ent_owner: None,
+            };
+            let mut has_target_in_range = false;
+            let mut closest_ent_distance = self.range;
+            for (ent_id, ent_rect_center) in &world_info.ent_rect_center {
+                if *ent_id == self.ent.id {
+                    // Cannot attack self; return early
+                    continue;
+                }
+                if world_info
+                    .get_ent_owner_by_id(*ent_id)
+                    .expect(">> Could not find ent team by id")
+                    == self.ent.owner
+                {
+                    // Cannot attack an ent on the same team; return early
+                    continue;
+                }
+                let self_rect_center = self.ent.get_rect().center();
+                let distance =
+                    (Vector2D::<f32>::new(self_rect_center.x as f32, self_rect_center.y as f32)
+                        - Vector2D::<f32>::new(ent_rect_center.x, ent_rect_center.y))
+                    .length();
+                if distance > self.range {
+                    // Too far away to attack; return early
+                    continue;
+                }
+                // Only attack the closest possible target
+                if distance < closest_ent_distance {
+                    // At this point, we know there is at least one target in range
+                    has_target_in_range = true;
+                    closest_ent_distance = distance;
+                    closest_ent_in_range = EntTarget {
+                        ent_id: Some(*ent_id),
+                        ent_rect: Some(
+                            world_info
+                                .get_ent_rect_by_id(*ent_id)
+                                .expect(">> Could not find entity rect by id"),
+                        ),
+                        ent_owner: world_info.get_ent_owner_by_id(*ent_id),
+                    };
+                }
+            }
+
+            if has_target_in_range {
+                let ent_rect = closest_ent_in_range
+                    .ent_rect
+                    .expect(">> Could not find ent rect by id");
+                let attack_order = Order::new(
+                    OrderType::Attack,
+                    Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
+                    closest_ent_in_range,
+                );
+                // Issue attack order to closest in-range target
+                // Bump it so that it takes precedence over this attack move order
+                self.bump_order(attack_order);
+            }
+        }
+
         // Execute next order
         self.update_orders(world_info);
         let (next_order_option, next_order_direction_option) = self.execute_next_order();
 
         // If there are no orders to update, return early
         if next_order_option.is_none() {
+            self.ent.state = State::Alert;
             return;
         }
 
@@ -71,6 +138,7 @@ impl Unit {
             next_order_option.expect(">> Could not update next order; unit order vector is empty");
         match next_order.order_type {
             OrderType::Move => {
+                self.ent.state = State::Busy;
                 self.is_attacking = false;
                 self.set_velocity(next_order_direction_option.expect(
                     ">> Could not set unit velocity; current order did not produce a direction vector",
@@ -91,7 +159,12 @@ impl Unit {
                 }
                 let attack_target_pos = possible_attack_target_pos
                     .expect(">> Could not find attack target position from world info");
-                if (self.ent.position - attack_target_pos).length() < self.range {
+                let self_rect_center = self.ent.get_rect().center();
+                if (Vector2D::<f32>::new(self_rect_center.x as f32, self_rect_center.y as f32)
+                    - attack_target_pos)
+                    .length()
+                    < self.range
+                {
                     // If target is in range, stop
                     self.clear_velocity();
                     // Mark as attacking
@@ -104,69 +177,12 @@ impl Unit {
                     // Mark as not attacking
                     self.is_attacking = false;
                 }
+                self.ent.state = State::Busy;
             }
             OrderType::AttackMove => {
-                // Check if any other unit is in range; if so, issue attack order to the closest one
-                let mut closest_ent_in_range = EntTarget {
-                    ent_id: None,
-                    ent_rect: None,
-                    ent_owner: None,
-                };
-                let mut has_target_in_range = false;
-                let mut closest_ent_distance = self.range;
-                for (ent_id, ent_rect_center) in &world_info.ent_rect_center {
-                    if *ent_id == self.ent.id {
-                        // Cannot attack self; return early
-                        continue;
-                    }
-                    if world_info
-                        .get_ent_owner_by_id(*ent_id)
-                        .expect(">> Could not find ent team by id")
-                        == self.ent.owner
-                    {
-                        // Cannot attack an ent on the same team; return early
-                        continue;
-                    }
-                    let distance = (self.ent.position
-                        - Vector2D::<f32>::new(ent_rect_center.x, ent_rect_center.y))
-                    .length();
-                    if distance > self.range {
-                        // Too far away to attack; return early
-                        continue;
-                    }
-                    // Only attack the closest possible target
-                    if distance < closest_ent_distance {
-                        // At this point, we know there is at least one target in range
-                        has_target_in_range = true;
-                        closest_ent_distance = distance;
-                        closest_ent_in_range = EntTarget {
-                            ent_id: Some(*ent_id),
-                            ent_rect: Some(
-                                world_info
-                                    .get_ent_rect_by_id(*ent_id)
-                                    .expect(">> Could not find entity rect by id"),
-                            ),
-                            ent_owner: world_info.get_ent_owner_by_id(*ent_id),
-                        };
-                    }
-                }
-                if has_target_in_range {
-                    let ent_rect = closest_ent_in_range
-                        .ent_rect
-                        .expect(">> Could not find ent rect by id");
-                    let attack_order = Order::new(
-                        OrderType::Attack,
-                        Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
-                        closest_ent_in_range,
-                    );
-                    // Issue attack order to closest in-range target
-                    // Bump it so that it takes precedence over this attack move order
-                    self.bump_order(attack_order);
-                } else {
-                    // Just move towards the target position
-                    self.is_attacking = false;
-                    self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
-                }
+                self.ent.state = State::Alert;
+                self.is_attacking = false;
+                self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
             }
             OrderType::Follow => {
                 // Unit should stop moving if it gets within a certain distance of it's follow target
@@ -183,6 +199,7 @@ impl Unit {
                     ));
                 }
                 self.is_attacking = false;
+                self.ent.state = State::Busy;
             }
         }
 
