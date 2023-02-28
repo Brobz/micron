@@ -9,12 +9,12 @@
 //      ==> This MASSIVELY boosts performace, not drawing orders for 1k units eliminates all lag when queuing. this would effectively cut 90% of the orders to draw out
 
 // Current stuff
-//  1. Add hold position order (H) and stop order (S)
+//  1. Add hold position order (H)
 //      0. Hold Position = State Alert, issue LazyAttack (attack while in range, no following)
-//      1. Stop = State Busy, clear orders
 
 //  2. Test collision feel & benchmark
 //      0. Add collision checks for units (disallow intersections, no bouncing at first) and test performance compared to no collision tests
+//      1. Maybe try a Mutalisk style thing - can overlap freely while moving, but slowly unbunch until completely separated when resting
 
 //  3. Refactor game system
 //      0. Have a GameObject Enum that can be either Unit or Structure; ent will be contained inside those; refactor all world.units calculations to use world.game_objects
@@ -74,7 +74,7 @@ fn main() -> Result<(), String> {
     let mut world_info = WorldInfo::new();
     let mut camera = Camera::new();
 
-    spawn_debug_ents(&mut world, &mut world_info);
+    spawn_debug_ents(500, &mut world, &mut world_info);
 
     loop {
         //////////////////////// USER INPUT /////////////////////////
@@ -114,13 +114,14 @@ fn main() -> Result<(), String> {
                 if order.ent_target.ent_id.is_none() {
                     continue;
                 }
+
                 // Grab the target EntID
                 let ent_target_id = order
                     .ent_target
                     .ent_id
                     .expect(">> Could not find attack target id for order");
 
-                // For every order, update it's target position to the attacked entities position (if available)
+                // Update the order's target position to the attacked entity's position (if available)
                 if let Some(target_position) = world_info.get_ent_poisition_by_id(ent_target_id) {
                     order.current_move_target = target_position;
                 }

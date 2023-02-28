@@ -68,6 +68,20 @@ impl Input {
                     ..
                 } => world.selection.shift_release(),
 
+                Event::KeyDown {
+                    keycode: Some(Keycode::S),
+                    ..
+                } => {
+                    for unit in &mut world.units {
+                        if unit.ent.selected()
+                            && (unit.ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
+                        {
+                            // Issue stop order to owned selected units
+                            unit.stop();
+                        }
+                    }
+                }
+
                 _ => {}
             }
         }

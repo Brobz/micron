@@ -15,7 +15,8 @@ pub enum Owner {
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum State {
     Alert, // No pending orders; Will latch on to closest enemy in range. Idle.
-    Busy,  // Busy; Will continue to do whatever until it's done or cancelled (or death).
+    Busy,  // Will continue to do whatever until it's done or cancelled (or death).
+    Stop,  // No orders; Will remain still untill another order is directly issued by the owner.
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]

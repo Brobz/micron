@@ -57,7 +57,20 @@ impl Unit {
         // Apply velocity (if any)
         self.apply_velocity();
 
-        // Check for alert state
+        // Check for Stop state
+        // If there is no next order to execute
+        if self.orders.is_empty() {
+            // If stopped, return early
+            if self.ent.state == State::Stop {
+                return;
+            }
+            // Else, set state to Alert
+            else {
+                self.ent.state = State::Alert;
+            }
+        }
+
+        // Check for Alert state
         // An alert unit has no pending orders in its queue
         // It should actively seek combat with enemy units that appear in its range
         if self.ent.state == State::Alert {
@@ -123,19 +136,23 @@ impl Unit {
             }
         }
 
-        // Execute next order
-        self.update_orders(world_info);
-        let (next_order_option, next_order_direction_option) = self.execute_next_order();
+        // Check existing orders for completion
+        self.check_orders(world_info);
 
-        // If there are no orders to update, return early
-        if next_order_option.is_none() {
-            self.ent.state = State::Alert;
+        // Clear any completed orders
+        self.clear_completed_orders();
+
+        // If no orders, return early
+        if self.orders.is_empty() {
             return;
         }
 
-        // Update current order status
+        // Try to grab next order
+        let (next_order_option, next_order_direction_option) = self.grab_next_order();
+
+        // Execute current order
         let next_order =
-            next_order_option.expect(">> Could not update next order; unit order vector is empty");
+            next_order_option.expect(">> Could not grab next order from unit order vector");
         match next_order.order_type {
             OrderType::Move => {
                 self.ent.state = State::Busy;
@@ -350,9 +367,13 @@ impl Unit {
 
     pub fn add_order(&mut self, new_order: Order, replace: bool) {
         if replace {
-            self.orders.clear();
+            self.clear_orders();
         }
         self.orders.push(new_order);
+    }
+
+    pub fn clear_orders(&mut self) {
+        self.orders.clear();
     }
 
     pub fn bump_order(&mut self, new_order: Order) {
@@ -361,8 +382,8 @@ impl Unit {
         self.orders = new_orders;
     }
 
-    // If there is an order in the vector, grab it, mark it as executed, and process it's effects
-    pub fn execute_next_order(&self) -> (Option<&Order>, Option<Vector2D<f32>>) {
+    // If there is an order in the vector, grab it
+    pub fn grab_next_order(&self) -> (Option<&Order>, Option<Vector2D<f32>>) {
         if !self.orders.is_empty() {
             let next_order = self.orders.index(0);
             let copy_of_target = next_order.current_move_target;
@@ -372,7 +393,6 @@ impl Unit {
                 copy_of_target,
                 self.speed,
             );
-
             return (Some(next_order), Some(new_velocity));
         }
         (None, None)
@@ -380,8 +400,7 @@ impl Unit {
 
     // This method checks the current executed order for completion
     // If its completed, marks it as so, and processes results
-    // Then removes all completed orders from unit's vector
-    pub fn update_orders(&mut self, world_info: &WorldInfo) {
+    pub fn check_orders(&mut self, world_info: &WorldInfo) {
         if !self.orders.is_empty() {
             let next_order = self.orders.index_mut(0);
 
@@ -426,13 +445,23 @@ impl Unit {
                     }
                 }
             }
-
-            self.clear_unwated_orders();
         }
     }
 
     // This method removes completed orders from the unit's order vector
-    fn clear_unwated_orders(&mut self) {
+    fn clear_completed_orders(&mut self) {
         self.orders.retain(|order| !order.completed);
+    }
+
+    // This method executes a stop order to the unit
+    // Stop order clears velocity, falsifies attack flag, and sets state to Stop
+    // It also clears orders, meaning it removes itself. pretty handy.
+    pub fn stop(&mut self) {
+        // Cancel all orders
+        self.clear_orders();
+        // Set state to stopped
+        self.is_attacking = false;
+        self.ent.state = State::Stop;
+        self.clear_velocity();
     }
 }

@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 build = "build.rs"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.dev]
+opt-level = 3
 
-# Enable max optimizations for dependencies, but not for our code:
-[profile.dev.package."*"]
+[profile.release]
 opt-level = 3
 
 [dependencies.sdl2]
