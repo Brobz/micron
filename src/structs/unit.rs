@@ -59,7 +59,7 @@ impl Unit {
         }
 
         // Apply velocity (if any)
-        self.apply_velocity();
+        self.apply_velocity(world_info);
 
         // Check for Stop state
         // If there is no next order to execute
@@ -253,14 +253,52 @@ impl Unit {
     }
 
     // This method applies velocity each tick to the unit
-    fn apply_velocity(&mut self) {
+    fn apply_velocity(&mut self, world_info: &WorldInfo) {
+        // Calculate speed penalty
         let attack_penalty: f32 = if self.is_attacking {
             ATTACKER_SPEED_PENALTY
         } else {
             1.0
         };
-        self.ent.position.x += self.velocity.x * TIME_STEP * attack_penalty;
-        self.ent.position.y += self.velocity.y * TIME_STEP * attack_penalty;
+        // Apply velocity components individually in order to smoothly resolve collisions
+        self.apply_x_velocity(world_info, self.velocity.x * TIME_STEP * attack_penalty);
+        self.apply_y_velocity(world_info, self.velocity.y * TIME_STEP * attack_penalty);
+    }
+
+    fn apply_x_velocity(&mut self, world_info: &WorldInfo, x_velocity: f32) {
+        // Aply velocity component
+        self.ent.position.x += x_velocity;
+        // Resolve collisions to the side
+        for (ent_id, ent_rect) in &world_info.ent_rect {
+            if *ent_id == self.ent.id {
+                continue;
+            }
+            if self.ent.get_rect().has_intersection(*ent_rect) {
+                if self.velocity.x > 0.0 {
+                    self.ent.position.x = (ent_rect.left() - self.ent.rect_size.x) as f32;
+                } else {
+                    self.ent.position.x = ent_rect.right() as f32;
+                }
+            }
+        }
+    }
+
+    fn apply_y_velocity(&mut self, world_info: &WorldInfo, y_velocity: f32) {
+        // Aply velocity component
+        self.ent.position.y += y_velocity;
+        // Resolve collisions to top/bottom
+        for (ent_id, ent_rect) in &world_info.ent_rect {
+            if *ent_id == self.ent.id {
+                continue;
+            }
+            if self.ent.get_rect().has_intersection(*ent_rect) {
+                if self.velocity.y > 0.0 {
+                    self.ent.position.y = (ent_rect.top() - self.ent.rect_size.y) as f32;
+                } else {
+                    self.ent.position.y = ent_rect.bottom() as f32;
+                }
+            }
+        }
     }
 
     pub fn add_order(&mut self, new_order: Order, replace: bool) {

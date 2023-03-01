@@ -3,15 +3,15 @@
 
 // TODO:
 //  Some important backlog stuff
-//  ??. Change selection bools to a enum State type of deal (check clipy::pedantic)
+//  ??. Change Selection struct bools to a enum State type of deal (check clipy::pedantic)
 //  ??. Limit framerate somehow (try using sdl2_timing)?
 //  ??. Figure out a way to only draw required orders (i.e. a selection of units gets shift moved around; all but the line from unit to first waypoint will be redrawn uselessly)
 //      ==> This MASSIVELY boosts performace, not drawing orders for 1k units eliminates all lag when queuing. this would effectively cut 90% of the orders to draw out
 
 // Some current stuff
 //  1. Test collision feel & benchmark
-//      0. Add collision checks for units (disallow intersections, no bouncing at first) and test performance compared to no collision tests
-//      1. Maybe try a Mutalisk style thing - can overlap freely while moving, but slowly unbunch until completely separated when resting
+//      0. Maybe try a Mutalisk style thing - can overlap freely while moving, but slowly unbunch until completely separated when resting
+//      1. If not, will definitely need to implement pathfinding (could give A* a try)
 
 //  2. Refactor game system
 //      0. Have a GameObject Enum that can be either Unit or Structure; ent will be contained inside those; refactor all world.units calculations to use world.game_objects
@@ -24,7 +24,7 @@
 //  Some less important backlog stuff
 //  ??. Add some logic to allow a unit to move while attacking (would need some sort of anchor target system; maintain target while in range, lose it when out of range)
 //  ??. Add patrol order (R) ?
-//  ??. Fix zoom out jankiness (would like it for the zoom behaviour to be reversed when zooming out... why is this so hard)
+//  ??. Fix zoom out jankiness (would like it for the zoom behaviour to be reversed when zooming out...)
 
 mod consts;
 mod structs;
@@ -71,7 +71,7 @@ fn main() -> Result<(), String> {
     let mut world_info = WorldInfo::new();
     let mut camera = Camera::new();
 
-    spawn_debug_ents(50, &mut world, &mut world_info);
+    spawn_debug_ents(500, &mut world, &mut world_info);
 
     loop {
         //////////////////////// USER INPUT /////////////////////////

@@ -18,7 +18,7 @@ pub struct WorldInfo {
     ent_hp: HashMap<EntID, f32>,     // Stores entity hp
     pub ent_rect_center: HashMap<EntID, Vector2D<f32>>, // Stores entity rect center
     ent_team: HashMap<EntID, Owner>, // Stores entity team
-    ent_rect: HashMap<EntID, Rect>,  // Stores entity rect
+    pub ent_rect: HashMap<EntID, Rect>, // Stores entity rect
 }
 
 impl WorldInfo {
