@@ -4,6 +4,7 @@ use vector2d::Vector2D;
 
 use crate::structs::{
     ent::{Ent, Owner},
+    game_object::GameObject,
     unit::Unit,
     world::World,
     world_info::WorldInfo,
@@ -25,6 +26,8 @@ pub fn spawn_debug_ents(n: i32, world: &mut World, world_info: &mut WorldInfo) {
             Point::new(rng.gen_range(5..50), rng.gen_range(5..50)),
         );
         world_info.add_ent(&new_ent);
-        world.units.push(Unit::new(new_ent));
+        world
+            .game_objects
+            .push(GameObject::Unit(new_ent, Unit::new()));
     }
 }

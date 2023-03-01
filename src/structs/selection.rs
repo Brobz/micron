@@ -6,9 +6,11 @@ use sdl2::video::Window;
 
 use crate::consts::helper::find_selection_box_translation;
 use crate::consts::values::SELECTION_BOX_COLOR;
-use crate::Unit;
 
+use super::ent::Ent;
 use super::ent::Owner;
+
+use super::game_object::GameObject;
 
 pub enum MouseCommand {
     Select,
@@ -40,10 +42,12 @@ impl Selection {
             left_click_command: MouseCommand::Select,
         }
     }
-    pub fn tick(&mut self, mouse_position: Point, units: &mut Vec<Unit>) {
+    pub fn tick(&mut self, mouse_position: Point, game_objects: &mut Vec<GameObject>) {
         if self.clearing {
-            for unit in units {
-                unit.ent.deselect();
+            for game_object in game_objects {
+                match game_object {
+                    GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => ent.deselect(),
+                }
             }
             self.clearing = false;
             self.origin = mouse_position;
@@ -57,38 +61,44 @@ impl Selection {
                 .set_height((mouse_position.y - self.origin.y).unsigned_abs());
             self.center = self.selection_box.center();
         } else if self.just_closed {
+            // TODO: Differentiate bewteen at least one unit selected and at least one structure selected
+            //        => prioritize selecting only units, like in SCII
             let mut at_least_one_selected = false;
             let mut at_least_one_from_player_selected = false;
-            let mut units_to_select: Vec<&mut Unit> = Vec::<&mut Unit>::new();
-            let mut units_to_deselect: Vec<&mut Unit> = Vec::<&mut Unit>::new();
-            for unit in units {
-                let possible_intersection = unit.ent.get_rect().intersection(self.selection_box);
-                if possible_intersection.is_some() {
-                    // Flag that this selection grabbed at least one ent
-                    at_least_one_selected = true;
-                    // Check if this ent is player-controlled
-                    if unit.ent.owner == Owner::Player {
-                        at_least_one_from_player_selected = true;
+            let mut ents_to_select: Vec<&mut Ent> = Vec::<&mut Ent>::new();
+            let mut ents_to_deselect: Vec<&mut Ent> = Vec::<&mut Ent>::new();
+            for game_object in game_objects {
+                match game_object {
+                    GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                        let possible_intersection = ent.get_rect().intersection(self.selection_box);
+                        if possible_intersection.is_some() {
+                            // Flag that this selection grabbed at least one ent
+                            at_least_one_selected = true;
+                            // Check if this ent is player-controlled
+                            if ent.owner == Owner::Player {
+                                at_least_one_from_player_selected = true;
+                            }
+                            // Mark this unit as selectable
+                            ents_to_select.push(ent);
+                        } else {
+                            ents_to_deselect.push(ent);
+                        }
                     }
-                    // Mark this unit as selectable
-                    units_to_select.push(unit);
-                } else {
-                    units_to_deselect.push(unit);
                 }
             }
             // If at least one ent was grabbed by selection, and not queueing, deselect current selection (if any)
             if at_least_one_selected {
-                for unit in units_to_deselect {
+                for ent in ents_to_deselect {
                     if !self.queueing {
-                        unit.ent.deselect();
+                        ent.deselect();
                     }
                 }
             }
-            for unit in units_to_select {
-                if unit.ent.owner == Owner::Player || !at_least_one_from_player_selected {
-                    unit.ent.select();
+            for ent in ents_to_select {
+                if ent.owner == Owner::Player || !at_least_one_from_player_selected {
+                    ent.select();
                 } else {
-                    unit.ent.deselect();
+                    ent.deselect();
                 }
             }
             self.just_closed = false;
@@ -108,24 +118,24 @@ impl Selection {
         canvas.set_blend_mode(BlendMode::None);
     }
 
-    pub fn open(&mut self, mouse_position: Point, units: &mut Vec<Unit>) {
+    pub fn open(&mut self, mouse_position: Point, game_objects: &mut Vec<GameObject>) {
         self.open = true;
-        self.tick(mouse_position, units);
+        self.tick(mouse_position, game_objects);
     }
 
-    pub fn close(&mut self, mouse_position: Point, units: &mut Vec<Unit>) {
+    pub fn close(&mut self, mouse_position: Point, game_objects: &mut Vec<GameObject>) {
         if self.open {
             self.open = false;
             self.just_closed = true;
         }
-        self.tick(mouse_position, units);
+        self.tick(mouse_position, game_objects);
     }
 
-    pub fn clear(&mut self, units: &mut Vec<Unit>) {
+    pub fn clear(&mut self, game_objects: &mut Vec<GameObject>) {
         self.open = false;
         self.just_closed = false;
         self.clearing = true;
-        self.tick(Point::new(-1, -1), units);
+        self.tick(Point::new(-1, -1), game_objects);
     }
 
     pub fn shift_press(&mut self) {

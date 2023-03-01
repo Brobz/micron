@@ -1,14 +1,14 @@
-use super::{selection::Selection, unit::Unit};
+use super::{game_object::GameObject, selection::Selection};
 
 pub struct World {
-    pub units: Vec<Unit>,
+    pub game_objects: Vec<GameObject>,
     pub selection: Selection,
 }
 
 impl World {
     pub fn new() -> Self {
         Self {
-            units: Vec::<Unit>::new(),
+            game_objects: Vec::<GameObject>::new(),
             selection: Selection::new(),
         }
     }

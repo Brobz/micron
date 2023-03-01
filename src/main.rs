@@ -14,10 +14,13 @@
 //      1. If not, will definitely need to implement pathfinding (could give A* a try)
 
 //  2. Refactor game system
-//      0. Have a GameObject Enum that can be either Unit or Structure; ent will be contained inside those; refactor all world.units calculations to use world.game_objects
-//      1. Change all pair data types on structs to Vector2D<f32>; Then convert back to point as needed for drawing (might be better then current way of things)
+//      0. Change all pair data types on structs to Vector2D<f32>; Then convert back to point as needed for drawing (might be better then current way of things)
 
-//  3. Get creative with combat
+//  3. Get creative with structures
+//      0. Figure out central structure (tower defense "nexus", what can it do, how does it get attacked, how does the player win the game, etc.)
+//      1. Add it, abstracting as much as possible
+
+//  4. Get creative with combat
 //      0. Figure out proper combat (attack speed (maybe not? check next list #))
 //      1. Add nice beam animation to current attack (several small boxes or circles travelling from one end of the line to the other)
 
@@ -35,14 +38,13 @@ use sdl2::rect::Rect;
 use structs::camera::Camera;
 
 use structs::ent::EntID;
+use structs::game_object::GameObject;
 use structs::input::Input;
 use structs::world_info::WorldInfo;
 
 use crate::{consts::*, structs::*};
 
 use structs::world::*;
-
-use crate::unit::*;
 
 use crate::setup::*;
 
@@ -87,48 +89,59 @@ fn main() -> Result<(), String> {
         // Tick units
         // Also, store the index of any units that are to be removed after this tick
         let mut ent_cleanup_list: Vec<EntID> = Vec::<EntID>::new();
-        for unit in &mut world.units {
-            // Check if this unit's entity still exists in the world
-            if world_info.has_ent(&unit.ent) {
-                // If so, tick and update world_info
-                unit.tick(&mut world_info);
-                world_info.update_ent(&unit.ent);
-            } else {
-                // If not, add to cleanup list
-                ent_cleanup_list.push(unit.ent.id);
+        for game_object in &mut world.game_objects {
+            match game_object {
+                GameObject::Unit(ent, unit) => {
+                    // Check if this unit's entity still exists in the world
+                    if world_info.has_ent(ent) {
+                        // If so, tick and update world_info
+                        unit.tick(ent, &mut world_info);
+                        world_info.update_ent(ent);
+                    } else {
+                        // If not, add to cleanup list
+                        ent_cleanup_list.push(ent.id);
+                    }
+                }
+                GameObject::Structure(_ent, _structure) => (),
             }
         }
 
         // Remove dead units
-        world
-            .units
-            .retain(|unit| !ent_cleanup_list.contains(&unit.ent.id));
+        world.game_objects.retain(|game_object| match game_object {
+            GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                !ent_cleanup_list.contains(&ent.id)
+            }
+        });
 
         // Tick orders
-        for unit in &mut world.units {
-            for order in &mut unit.orders {
-                // If this order has no ent target, skip it
-                if order.ent_target.ent_id.is_none() {
-                    continue;
+        for game_object in &mut world.game_objects {
+            match game_object {
+                GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                    for order in &mut ent.orders {
+                        // If this order has no ent target, skip it
+                        if order.ent_target.ent_id.is_none() {
+                            continue;
+                        }
+
+                        // Grab the target EntID
+                        let ent_target_id = order
+                            .ent_target
+                            .ent_id
+                            .expect(">> Could not find attack target id for order");
+
+                        // Update the order's target position to the attacked entity's position (if available)
+                        if let Some(target_position) =
+                            world_info.get_ent_rect_center_poisition_by_id(ent_target_id)
+                        {
+                            order.current_move_target = target_position;
+                        }
+
+                        // Also update the attack target rect
+                        order.ent_target.ent_rect = world_info.get_ent_rect_by_id(ent_target_id);
+
+                        // Note: no need to update target's team! for now...
+                    }
                 }
-
-                // Grab the target EntID
-                let ent_target_id = order
-                    .ent_target
-                    .ent_id
-                    .expect(">> Could not find attack target id for order");
-
-                // Update the order's target position to the attacked entity's position (if available)
-                if let Some(target_position) =
-                    world_info.get_ent_rect_center_poisition_by_id(ent_target_id)
-                {
-                    order.current_move_target = target_position;
-                }
-
-                // Also update the attack target rect
-                order.ent_target.ent_rect = world_info.get_ent_rect_by_id(ent_target_id);
-
-                // Note: no need to update target's team! for now...
             }
         }
 
@@ -158,18 +171,33 @@ fn main() -> Result<(), String> {
         ));
 
         // Draw unit orders
-        for unit in &world.units {
-            unit.draw_orders(&mut canvas);
+        for game_object in &mut world.game_objects {
+            match game_object {
+                GameObject::Unit(ent, unit) => {
+                    unit.draw_orders(ent, &mut canvas);
+                }
+                GameObject::Structure(_ent, _structure) => todo!(),
+            }
         }
 
-        // Draw units
-        for unit in &world.units {
-            unit.draw(&mut canvas);
+        // Draw game_objects
+        for game_object in &mut world.game_objects {
+            match game_object {
+                GameObject::Unit(ent, unit) => {
+                    unit.draw(ent, &mut canvas);
+                }
+                GameObject::Structure(_ent, _structure) => todo!(),
+            }
         }
 
         // Draw attack lines
-        for unit in &world.units {
-            unit.draw_attack_lines(&mut canvas);
+        for game_object in &mut world.game_objects {
+            match game_object {
+                GameObject::Unit(ent, unit) => {
+                    unit.draw_attack_lines(ent, &mut canvas);
+                }
+                GameObject::Structure(_ent, _structure) => todo!(),
+            }
         }
 
         // Draw Health Bars

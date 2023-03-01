@@ -6,6 +6,7 @@ use crate::consts::{debug_flags::DEBUG_CAN_CONTROL_CPU, helper::select_all_army}
 use super::{
     camera::Camera,
     ent::Owner,
+    game_object::GameObject,
     order::{EntTarget, Order, OrderType},
     selection::MouseCommand,
     world::World,
@@ -56,7 +57,7 @@ impl Input {
                 Event::KeyDown {
                     keycode: Some(Keycode::Escape),
                     ..
-                } => world.selection.clear(&mut world.units),
+                } => world.selection.clear(&mut world.game_objects),
 
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
@@ -72,12 +73,17 @@ impl Input {
                     keycode: Some(Keycode::S),
                     ..
                 } => {
-                    for unit in &mut world.units {
-                        if unit.ent.selected()
-                            && (unit.ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
-                        {
-                            // Issue stop order to owned selected units
-                            unit.stop();
+                    for game_object in &mut world.game_objects {
+                        match game_object {
+                            GameObject::Unit(ent, unit) => {
+                                if ent.selected()
+                                    && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
+                                {
+                                    // Issue stop order to owned selected units
+                                    unit.stop(ent);
+                                }
+                            }
+                            _ => (),
                         }
                     }
                 }
@@ -86,37 +92,40 @@ impl Input {
                     keycode: Some(Keycode::H),
                     ..
                 } => {
-                    for unit in &mut world.units {
-                        if unit.ent.selected()
-                            && (unit.ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
-                        {
-                            // If queueing, need to figure out if this is the first order of the chain or not
-                            // To know what to render
-                            let mut hold_position_spot: Option<Vector2D<f32>> = None;
-                            if world.selection.queueing {
-                                if unit.orders.is_empty() {
-                                    hold_position_spot = Some(unit.ent.position);
-                                } else {
-                                    hold_position_spot = Some(unit
-                                        .orders
+                    for game_object in &mut world.game_objects {
+                        match game_object {
+                            GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                                if ent.selected()
+                                    && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
+                                {
+                                    // If queueing, need to figure out if this is the first order of the chain or not
+                                    // To know what to render
+                                    let mut hold_position_spot: Option<Vector2D<f32>> = None;
+                                    if world.selection.queueing {
+                                        if ent.orders.is_empty() {
+                                            hold_position_spot = Some(ent.position);
+                                        } else {
+                                            hold_position_spot = Some(ent.orders
                                         .last()
                                         .expect(
                                             ">> Could not get order even though list is not empty?",
                                         )
                                         .current_move_target)
+                                        }
+                                    }
+                                    // Issue hold position order to owned selected units
+                                    let hold_position_order = Order::new(
+                                        OrderType::HoldPosition,
+                                        hold_position_spot.unwrap_or(ent.position),
+                                        EntTarget {
+                                            ent_id: None,
+                                            ent_rect: None,
+                                            ent_owner: None,
+                                        },
+                                    );
+                                    ent.add_order(hold_position_order, !world.selection.queueing);
                                 }
                             }
-                            // Issue hold position order to owned selected units
-                            let hold_position_order = Order::new(
-                                OrderType::HoldPosition,
-                                hold_position_spot.unwrap_or(unit.ent.position),
-                                EntTarget {
-                                    ent_id: None,
-                                    ent_rect: None,
-                                    ent_owner: None,
-                                },
-                            );
-                            unit.add_order(hold_position_order, !world.selection.queueing);
                         }
                     }
                 }
@@ -145,7 +154,9 @@ impl Input {
         let scaled_mouse_pos = camera.get_scaled_mouse_pos();
         match mouse_btn {
             MouseButton::Left => match world.selection.left_click_command {
-                MouseCommand::Select => world.selection.close(scaled_mouse_pos, &mut world.units),
+                MouseCommand::Select => world
+                    .selection
+                    .close(scaled_mouse_pos, &mut world.game_objects),
                 MouseCommand::Attack => world.selection.release_command(),
             },
             MouseButton::Middle => camera.release(),
@@ -175,19 +186,22 @@ impl Input {
         let mut found_target = false;
 
         // Check wether we clicked on something attackable
-        for unit in &world.units {
-            if unit
-                .ent
-                .get_rect()
-                .has_intersection(camera.get_scaled_mouse_rect())
-            {
-                attack_target = EntTarget {
-                    ent_id: Some(unit.ent.id),
-                    ent_rect: Some(unit.ent.get_rect()),
-                    ent_owner: Some(unit.ent.owner),
-                };
-                found_target = true;
-                break;
+        for game_object in &world.game_objects {
+            match game_object {
+                GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                    if ent
+                        .get_rect()
+                        .has_intersection(camera.get_scaled_mouse_rect())
+                    {
+                        attack_target = EntTarget {
+                            ent_id: Some(ent.id),
+                            ent_rect: Some(ent.get_rect()),
+                            ent_owner: Some(ent.owner),
+                        };
+                        found_target = true;
+                        break;
+                    }
+                }
             }
         }
 
@@ -197,60 +211,68 @@ impl Input {
                 match world.selection.left_click_command {
                     MouseCommand::Select => {
                         // No command engaged, just open selection
-                        world.selection.open(scaled_mouse_pos, &mut world.units);
+                        world
+                            .selection
+                            .open(scaled_mouse_pos, &mut world.game_objects);
                     }
                     MouseCommand::Attack => {
-                        for unit in &mut world.units {
-                            if unit.ent.selected()
-                                && (unit.ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
-                            {
-                                if !found_target {
-                                    // No attack target found; Issue attack move order
-                                    let attack_move_order = Order::new(
-                                        OrderType::AttackMove,
-                                        Vector2D::<f32>::new(
-                                            scaled_mouse_pos.x as f32,
-                                            scaled_mouse_pos.y as f32,
-                                        ),
-                                        EntTarget {
-                                            ent_id: None,
-                                            ent_rect: None,
-                                            ent_owner: None,
-                                        },
-                                    );
-                                    unit.add_order(attack_move_order, !world.selection.queueing);
-                                } else {
-                                    // Attack target found; check if it is a valid one
-                                    // (defaults to self in case it's not there, canceling the attack (it should be there tho))
-                                    let attack_target_id =
-                                        attack_target.ent_id.unwrap_or(unit.ent.id);
-                                    if attack_target_id == unit.ent.id {
-                                        // Cannot attack yourself!
-                                        continue;
-                                    }
-                                    if attack_target
-                                        .ent_owner
-                                        .expect(">> Could not get entity team from attack target")
-                                        == unit.ent.owner
+                        for game_object in &mut world.game_objects {
+                            match game_object {
+                                GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                                    if ent.selected()
+                                        && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                                     {
-                                        // Cannot attack an ent on the same team!
-                                        continue;
+                                        if !found_target {
+                                            // No attack target found; Issue attack move order
+                                            let attack_move_order = Order::new(
+                                                OrderType::AttackMove,
+                                                Vector2D::<f32>::new(
+                                                    scaled_mouse_pos.x as f32,
+                                                    scaled_mouse_pos.y as f32,
+                                                ),
+                                                EntTarget {
+                                                    ent_id: None,
+                                                    ent_rect: None,
+                                                    ent_owner: None,
+                                                },
+                                            );
+                                            ent.add_order(
+                                                attack_move_order,
+                                                !world.selection.queueing,
+                                            );
+                                        } else {
+                                            // Attack target found; check if it is a valid one
+                                            // (defaults to self in case it's not there, canceling the attack (it should be there tho))
+                                            let attack_target_id =
+                                                attack_target.ent_id.unwrap_or(ent.id);
+                                            if attack_target_id == ent.id {
+                                                // Cannot attack yourself!
+                                                continue;
+                                            }
+                                            if attack_target.ent_owner.expect(
+                                                ">> Could not get entity team from attack target",
+                                            ) == ent.owner
+                                            {
+                                                // Cannot attack an ent on the same team!
+                                                continue;
+                                            }
+                                            let attack_order = Order::new(
+                                                OrderType::Attack,
+                                                Vector2D::<f32>::new(
+                                                    scaled_mouse_pos.x as f32,
+                                                    scaled_mouse_pos.y as f32,
+                                                ),
+                                                EntTarget {
+                                                    ent_id: Some(attack_target_id),
+                                                    ent_rect: world_info
+                                                        .get_ent_rect_by_id(attack_target_id),
+                                                    ent_owner: world_info
+                                                        .get_ent_owner_by_id(attack_target_id),
+                                                },
+                                            );
+                                            ent.add_order(attack_order, !world.selection.queueing);
+                                        }
                                     }
-                                    let attack_order = Order::new(
-                                        OrderType::Attack,
-                                        Vector2D::<f32>::new(
-                                            scaled_mouse_pos.x as f32,
-                                            scaled_mouse_pos.y as f32,
-                                        ),
-                                        EntTarget {
-                                            ent_id: Some(attack_target_id),
-                                            ent_rect: world_info
-                                                .get_ent_rect_by_id(attack_target_id),
-                                            ent_owner: world_info
-                                                .get_ent_owner_by_id(attack_target_id),
-                                        },
-                                    );
-                                    unit.add_order(attack_order, !world.selection.queueing);
                                 }
                             }
                         }
@@ -267,72 +289,81 @@ impl Input {
                 // Release left click command (if any)
                 world.selection.release_command();
                 // Check wether we clicked on something attackable
-                for unit in &world.units {
-                    if unit
-                        .ent
-                        .get_rect()
-                        .has_intersection(camera.get_scaled_mouse_rect())
-                    {
-                        attack_target = EntTarget {
-                            ent_id: Some(unit.ent.id),
-                            ent_rect: Some(unit.ent.get_rect()),
-                            ent_owner: Some(unit.ent.owner),
-                        };
-                        break;
+                for game_object in &world.game_objects {
+                    match game_object {
+                        GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                            if ent
+                                .get_rect()
+                                .has_intersection(camera.get_scaled_mouse_rect())
+                            {
+                                attack_target = EntTarget {
+                                    ent_id: Some(ent.id),
+                                    ent_rect: Some(ent.get_rect()),
+                                    ent_owner: Some(ent.owner),
+                                };
+                                break;
+                            }
+                        }
                     }
                 }
 
-                for unit in &mut world.units {
-                    if unit.ent.selected()
-                        && (unit.ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
-                    {
-                        if !found_target {
-                            // No attack target found; Issue move order
-                            let move_order = Order::new(
-                                OrderType::Move,
-                                Vector2D::<f32>::new(
-                                    scaled_mouse_pos.x as f32,
-                                    scaled_mouse_pos.y as f32,
-                                ),
-                                EntTarget {
-                                    ent_id: None,
-                                    ent_rect: None,
-                                    ent_owner: None,
-                                },
-                            );
-                            unit.add_order(move_order, !world.selection.queueing);
-                        } else {
-                            // Attack target found; check if it is a valid one
-                            // (defaults to self in case it's not there, canceling the attack (it should be there tho))
-                            let attack_target_id = attack_target.ent_id.unwrap_or(unit.ent.id);
-                            if attack_target_id == unit.ent.id {
-                                // Cannot attack yourself!
-                                continue;
-                            }
-                            // At this point, we know we will either attack or follow this target, depending on it's team
-                            let new_order_type = if attack_target
-                                .ent_owner
-                                .expect(">> Could not get identity team from attack target")
-                                == unit.ent.owner
+                for game_object in &mut world.game_objects {
+                    match game_object {
+                        GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                            if ent.selected()
+                                && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                             {
-                                OrderType::Follow
-                            } else {
-                                OrderType::Attack
-                            };
+                                if !found_target {
+                                    // No attack target found; Issue move order
+                                    let move_order = Order::new(
+                                        OrderType::Move,
+                                        Vector2D::<f32>::new(
+                                            scaled_mouse_pos.x as f32,
+                                            scaled_mouse_pos.y as f32,
+                                        ),
+                                        EntTarget {
+                                            ent_id: None,
+                                            ent_rect: None,
+                                            ent_owner: None,
+                                        },
+                                    );
+                                    ent.add_order(move_order, !world.selection.queueing);
+                                } else {
+                                    // Attack target found; check if it is a valid one
+                                    // (defaults to self in case it's not there, canceling the attack (it should be there tho))
+                                    let attack_target_id = attack_target.ent_id.unwrap_or(ent.id);
+                                    if attack_target_id == ent.id {
+                                        // Cannot attack yourself!
+                                        continue;
+                                    }
+                                    // At this point, we know we will either attack or follow this target, depending on it's team
+                                    let new_order_type = if attack_target
+                                        .ent_owner
+                                        .expect(">> Could not get identity team from attack target")
+                                        == ent.owner
+                                    {
+                                        OrderType::Follow
+                                    } else {
+                                        OrderType::Attack
+                                    };
 
-                            let new_order = Order::new(
-                                new_order_type,
-                                Vector2D::<f32>::new(
-                                    scaled_mouse_pos.x as f32,
-                                    scaled_mouse_pos.y as f32,
-                                ),
-                                EntTarget {
-                                    ent_id: Option::Some(attack_target_id),
-                                    ent_rect: world_info.get_ent_rect_by_id(attack_target_id),
-                                    ent_owner: world_info.get_ent_owner_by_id(attack_target_id),
-                                },
-                            );
-                            unit.add_order(new_order, !world.selection.queueing);
+                                    let new_order = Order::new(
+                                        new_order_type,
+                                        Vector2D::<f32>::new(
+                                            scaled_mouse_pos.x as f32,
+                                            scaled_mouse_pos.y as f32,
+                                        ),
+                                        EntTarget {
+                                            ent_id: Option::Some(attack_target_id),
+                                            ent_rect: world_info
+                                                .get_ent_rect_by_id(attack_target_id),
+                                            ent_owner: world_info
+                                                .get_ent_owner_by_id(attack_target_id),
+                                        },
+                                    );
+                                    ent.add_order(new_order, !world.selection.queueing);
+                                }
+                            }
                         }
                     }
                 }
@@ -344,7 +375,9 @@ impl Input {
     fn process_mouse_motion(x: i32, y: i32, camera: &mut Camera, world: &mut World) {
         camera.update_mouse_rect(Point::new(x, y));
         let scaled_mouse_pos = camera.get_scaled_mouse_pos();
-        world.selection.tick(scaled_mouse_pos, &mut world.units);
+        world
+            .selection
+            .tick(scaled_mouse_pos, &mut world.game_objects);
         if camera.is_anchored() {
             let anchored_mouse_pos = camera.get_anchored_mouse_pos();
             camera.drag_to(anchored_mouse_pos);

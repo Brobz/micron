@@ -10,6 +10,7 @@ use crate::{
     consts::values::{MAX_SELECTION_BORDER_SIZE, MIN_SELECTION_BORDER_SIZE},
     structs::{
         ent::{EntID, Owner},
+        game_object::GameObject,
         order::Order,
         world::World,
     },
@@ -84,13 +85,17 @@ pub fn draw_selection_border(canvas: &mut Canvas<Window>, ent_rect: &Rect, color
 // Selects all (if any) player owned army units
 // Note: replaces current selection)
 pub fn select_all_army(world: &mut World) {
-    for unit in &mut world.units {
-        if unit.ent.owner == Owner::Player {
-            // TODO: FOR NOW, all units are army; soon this will change
-            //      if unit.type is army type or whatever
-            unit.ent.select();
-        } else {
-            unit.ent.deselect();
+    for game_object in &mut world.game_objects {
+        match game_object {
+            GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                if ent.owner == Owner::Player {
+                    // TODO: FOR NOW, all units are army; soon this will change
+                    //      if unit.type is army type or whatever
+                    ent.select();
+                } else {
+                    ent.deselect();
+                }
+            }
         }
     }
     world.selection.open = false;

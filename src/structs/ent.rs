@@ -6,6 +6,8 @@ use vector2d::Vector2D;
 
 use crate::consts::{helper::CURRENT_ENT_ID, values::RED_RGB};
 
+use super::order::Order;
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Owner {
     Player,
@@ -34,6 +36,7 @@ pub struct Ent {
     pub color: Color,
     pub owner: Owner,
     pub state: State,
+    pub orders: Vec<Order>,
     selected: bool,
 }
 
@@ -56,6 +59,7 @@ impl Ent {
             },
             owner,
             state: State::Alert,
+            orders: Vec::<Order>::new(),
             selected: false,
         }
     }
@@ -79,5 +83,22 @@ impl Ent {
 
     pub fn deselect(&mut self) {
         self.selected = false;
+    }
+
+    pub fn add_order(&mut self, new_order: Order, replace: bool) {
+        if replace {
+            self.clear_orders();
+        }
+        self.orders.push(new_order);
+    }
+
+    pub fn clear_orders(&mut self) {
+        self.orders.clear();
+    }
+
+    pub fn bump_order(&mut self, new_order: Order) {
+        let mut new_orders = vec![new_order];
+        new_orders.append(&mut self.orders);
+        self.orders = new_orders;
     }
 }

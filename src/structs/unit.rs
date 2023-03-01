@@ -24,133 +24,130 @@ use super::order::EntTarget;
 use super::world_info::WorldInfo;
 
 pub struct Unit {
-    pub ent: Ent,
     pub speed: f32,
     pub damage: f32,
     pub range: f32,
     is_attacking: bool,
     attack_line_render_latch_point_delta: Option<Point>,
     velocity: Vector2D<f32>,
-    pub orders: Vec<Order>,
 }
 
 impl Unit {
-    pub fn new(ent: Ent) -> Self {
+    pub fn new() -> Self {
         Self {
-            ent,
             speed: BASE_UNIT_SPEED,
             damage: BASE_UNIT_DAMAGE,
             range: BASE_UNIT_RANGE,
             is_attacking: false,
             attack_line_render_latch_point_delta: None,
             velocity: Vector2D::<f32>::new(0.0, 0.0),
-            orders: Vec::<Order>::new(),
         }
     }
 
-    pub fn tick(&mut self, world_info: &mut WorldInfo) {
+    pub fn tick(&mut self, ent: &mut Ent, world_info: &mut WorldInfo) {
         // Update local HP based on world_info data
         // If not found there, then unit is dead
-        self.ent.hp = world_info.get_ent_hp(&self.ent).unwrap_or(0.0);
+        ent.hp = world_info.get_ent_hp(ent).unwrap_or(0.0);
 
         // If dead, return early
-        if self.ent.hp <= 0.0 {
+        if ent.hp <= 0.0 {
             return;
         }
 
         // Apply velocity (if any)
-        self.apply_velocity(world_info);
+        // Also handles collision detection
+        self.apply_velocity(ent, world_info);
 
         // Check for Stop state
         // If there is no next order to execute
-        if self.orders.is_empty() {
+        if ent.orders.is_empty() {
             // If stopped, return early
-            if self.ent.state == State::Stop {
+            if ent.state == State::Stop {
                 return;
             }
             // Else, if not holding, set state to Alert
-            else if self.ent.state != State::Hold {
-                self.ent.state = State::Alert;
+            else if ent.state != State::Hold {
+                ent.state = State::Alert;
             }
         }
 
         // If able, observe surroundings and take appropriate actions
-        self.check_surroundings(world_info);
+        self.check_surroundings(ent, world_info);
 
         // Check existing orders for completion
-        self.check_orders();
+        self.check_orders(ent);
 
         // Clear any completed orders
-        self.clear_completed_orders();
+        self.clear_completed_orders(ent);
 
         // If no orders, return early
-        if self.orders.is_empty() {
+        if ent.orders.is_empty() {
             return;
         }
 
         // Try to grab next order
-        let (next_order_option, next_order_direction_option) = self.grab_next_order();
+        let (next_order_option, next_order_direction_option) = self.grab_next_order(ent);
 
         // Execute current order
         let next_order =
             next_order_option.expect(">> Could not grab next order from unit order vector");
         // Keep a flag to mark completion
         let did_complete_order =
-            self.execute_next_order(next_order, next_order_direction_option, world_info);
+            self.execute_next_order(ent, next_order, next_order_direction_option, world_info);
 
         // Check if we can complete the order
         if did_complete_order {
             // Positive, mark as completed
-            self.orders.index_mut(0).complete();
+            ent.orders.index_mut(0).complete();
         } else {
             // Else, just mark order as executed
-            self.orders.index_mut(0).execute();
+            ent.orders.index_mut(0).execute();
         }
     }
 
-    pub fn draw(&self, canvas: &mut Canvas<Window>) {
+    pub fn draw(&self, ent: &mut Ent, canvas: &mut Canvas<Window>) {
         // If dead, return early
-        if self.ent.hp <= 0.0 {
+        if ent.hp <= 0.0 {
             return {};
         }
         // If selected, draw selection border
-        if self.ent.selected() {
-            let border_color = if self.ent.owner == Owner::Player {
+        if ent.selected() {
+            let border_color = if ent.owner == Owner::Player {
                 SELECTION_BORDER_COLOR
             } else {
                 RED_RGBA_WEAK
             };
-            draw_selection_border(canvas, &self.ent.get_rect(), border_color);
+            draw_selection_border(canvas, &ent.get_rect(), border_color);
         }
 
         // Draw self (if alive)
-        canvas.set_draw_color(self.ent.color);
-        if self.ent.owner == Owner::Cpu {
+        canvas.set_draw_color(ent.color);
+        if ent.owner == Owner::Cpu {
             canvas.set_draw_color(BLACK_RGB);
         }
-        let rect = self.ent.get_rect();
+        let rect = ent.get_rect();
         canvas.fill_rect(rect).ok().unwrap_or_default();
         canvas.set_draw_color(BLACK_RGB);
         canvas.draw_rect(rect).ok();
-        if self.ent.state == State::Stop {
+        if ent.state == State::Stop {
             canvas.set_draw_color(GREY_RGB);
-            canvas.draw_point(self.ent.get_rect().center()).ok();
+            canvas.draw_point(ent.get_rect().center()).ok();
         }
-        if self.ent.state == State::Hold {
+        if ent.state == State::Hold {
             canvas.set_draw_color(ORANGE_RGB);
-            canvas.draw_point(self.ent.get_rect().center()).ok();
+            canvas.draw_point(ent.get_rect().center()).ok();
         }
     }
 
-    pub fn draw_orders(&self, canvas: &mut Canvas<Window>) {
+    pub fn draw_orders(&self, ent: &mut Ent, canvas: &mut Canvas<Window>) {
         // Draw order waypoints, if selected
-        if !self.ent.selected() {
+        if !ent.selected() {
             // Not selected, return early
             return;
         }
 
         canvas.set_draw_color(Color::RGB(0, 150, 0));
-        for (i, order) in self.orders.iter().enumerate() {
+        for (i, order) in ent.orders.iter().enumerate() {
             // Draw lines connecting order waypoints
             // Set colors according to order type
             match order.order_type {
@@ -165,7 +162,7 @@ impl Unit {
                 // If this is the next order, draw  a line from unit to waypoint
                 canvas
                     .draw_line(
-                        self.ent.get_rect().center(),
+                        ent.get_rect().center(),
                         Point::new(
                             order.current_move_target.x as i32,
                             order.current_move_target.y as i32,
@@ -176,7 +173,7 @@ impl Unit {
             }
             // Else, draw line from last waypoint to this one
             else {
-                let previous_order_target = self.orders.index(i - 1).current_move_target;
+                let previous_order_target = ent.orders.index(i - 1).current_move_target;
                 canvas
                     .draw_line(
                         Point::new(
@@ -225,16 +222,16 @@ impl Unit {
         }
     }
 
-    pub fn draw_attack_lines(&self, canvas: &mut Canvas<Window>) {
+    pub fn draw_attack_lines(&self, ent: &mut Ent, canvas: &mut Canvas<Window>) {
         // Draw attack lines (if attacking)
         if self.is_attacking {
-            let possible_attack_order = self.orders.get(0);
+            let possible_attack_order = ent.orders.get(0);
             if let Some(attack_order) = possible_attack_order {
                 if let Some(attack_target_rect) = attack_order.ent_target.ent_rect {
-                    canvas.set_draw_color(self.ent.color);
+                    canvas.set_draw_color(ent.color);
                     canvas
                         .draw_line(
-                            self.ent.get_rect().center(),
+                            ent.get_rect().center(),
                             attack_target_rect.center() + self.attack_line_render_latch_point_delta.expect(">> Could not get attack line render latch point, but is unit attacking?"),
                         )
                         .ok()
@@ -253,7 +250,7 @@ impl Unit {
     }
 
     // This method applies velocity each tick to the unit
-    fn apply_velocity(&mut self, world_info: &WorldInfo) {
+    fn apply_velocity(&mut self, ent: &mut Ent, world_info: &WorldInfo) {
         // Calculate speed penalty
         let attack_penalty: f32 = if self.is_attacking {
             ATTACKER_SPEED_PENALTY
@@ -261,69 +258,60 @@ impl Unit {
             1.0
         };
         // Apply velocity components individually in order to smoothly resolve collisions
-        self.apply_x_velocity(world_info, self.velocity.x * TIME_STEP * attack_penalty);
-        self.apply_y_velocity(world_info, self.velocity.y * TIME_STEP * attack_penalty);
+        self.apply_x_velocity(
+            ent,
+            world_info,
+            self.velocity.x * TIME_STEP * attack_penalty,
+        );
+        self.apply_y_velocity(
+            ent,
+            world_info,
+            self.velocity.y * TIME_STEP * attack_penalty,
+        );
     }
 
-    fn apply_x_velocity(&mut self, world_info: &WorldInfo, x_velocity: f32) {
+    fn apply_x_velocity(&mut self, ent: &mut Ent, world_info: &WorldInfo, x_velocity: f32) {
         // Aply velocity component
-        self.ent.position.x += x_velocity;
-        // Resolve collisions to the side
+        ent.position.x += x_velocity;
+        // Resolve collisions to the sides
         for (ent_id, ent_rect) in &world_info.ent_rect {
-            if *ent_id == self.ent.id {
+            if *ent_id == ent.id {
                 continue;
             }
-            if self.ent.get_rect().has_intersection(*ent_rect) {
+            if ent.get_rect().has_intersection(*ent_rect) {
                 if self.velocity.x > 0.0 {
-                    self.ent.position.x = (ent_rect.left() - self.ent.rect_size.x) as f32;
+                    ent.position.x = (ent_rect.left() - ent.rect_size.x) as f32;
                 } else {
-                    self.ent.position.x = ent_rect.right() as f32;
+                    ent.position.x = ent_rect.right() as f32;
                 }
             }
         }
     }
 
-    fn apply_y_velocity(&mut self, world_info: &WorldInfo, y_velocity: f32) {
+    fn apply_y_velocity(&mut self, ent: &mut Ent, world_info: &WorldInfo, y_velocity: f32) {
         // Aply velocity component
-        self.ent.position.y += y_velocity;
+        ent.position.y += y_velocity;
         // Resolve collisions to top/bottom
         for (ent_id, ent_rect) in &world_info.ent_rect {
-            if *ent_id == self.ent.id {
+            if *ent_id == ent.id {
                 continue;
             }
-            if self.ent.get_rect().has_intersection(*ent_rect) {
+            if ent.get_rect().has_intersection(*ent_rect) {
                 if self.velocity.y > 0.0 {
-                    self.ent.position.y = (ent_rect.top() - self.ent.rect_size.y) as f32;
+                    ent.position.y = (ent_rect.top() - ent.rect_size.y) as f32;
                 } else {
-                    self.ent.position.y = ent_rect.bottom() as f32;
+                    ent.position.y = ent_rect.bottom() as f32;
                 }
             }
         }
-    }
-
-    pub fn add_order(&mut self, new_order: Order, replace: bool) {
-        if replace {
-            self.clear_orders();
-        }
-        self.orders.push(new_order);
-    }
-
-    pub fn clear_orders(&mut self) {
-        self.orders.clear();
-    }
-
-    pub fn bump_order(&mut self, new_order: Order) {
-        let mut new_orders = vec![new_order];
-        new_orders.append(&mut self.orders);
-        self.orders = new_orders;
     }
 
     // If there is an order in the vector, grab it
-    pub fn grab_next_order(&self) -> (Option<Order>, Option<Vector2D<f32>>) {
-        if !self.orders.is_empty() {
-            let next_order = self.orders.index(0);
+    pub fn grab_next_order(&self, ent: &mut Ent) -> (Option<Order>, Option<Vector2D<f32>>) {
+        if !ent.orders.is_empty() {
+            let next_order = ent.orders.index(0);
             let copy_of_target = next_order.current_move_target;
-            let rect_center = self.ent.get_rect().center();
+            let rect_center = ent.get_rect().center();
             let new_velocity = get_direction_from_to(
                 Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32),
                 copy_of_target,
@@ -336,16 +324,16 @@ impl Unit {
 
     // This method checks the current executed order for completion
     // If its completed, marks it as so, and processes results
-    fn check_orders(&mut self) {
-        if !self.orders.is_empty() {
-            let next_order = self.orders.index(0);
+    fn check_orders(&mut self, ent: &mut Ent) {
+        if !ent.orders.is_empty() {
+            let next_order = ent.orders.index(0);
             let mut did_complete_order = false;
 
             if !next_order.completed && next_order.executed {
                 match next_order.order_type {
                     OrderType::Move | OrderType::AttackMove => {
                         // To complete either a move or attack move order, unit must reach it's destination
-                        if self.has_arrived_at(next_order.current_move_target) {
+                        if self.has_arrived_at(ent, next_order.current_move_target) {
                             // Mark this order as completed
                             did_complete_order = true;
 
@@ -367,44 +355,44 @@ impl Unit {
                 }
             }
             if did_complete_order {
-                self.orders.index_mut(0).complete();
+                ent.orders.index_mut(0).complete();
             }
         }
     }
 
     // This method removes completed orders from the unit's order vector
-    fn clear_completed_orders(&mut self) {
-        self.orders.retain(|order| !order.completed);
+    fn clear_completed_orders(&mut self, ent: &mut Ent) {
+        ent.orders.retain(|order| !order.completed);
     }
 
-    pub fn clear_all_but_current_order(&mut self) {
-        if self.orders.len() > 1 {
-            self.orders.drain(1..self.orders.len());
+    pub fn clear_all_but_current_order(&mut self, ent: &mut Ent) {
+        if ent.orders.len() > 1 {
+            ent.orders.drain(1..ent.orders.len());
         }
     }
 
     // This method executes a stop order to the unit
     // Stop order clears velocity, falsifies attack flag, and sets state to Stop
     // It also clears orders, meaning it removes itself. pretty handy.
-    pub fn stop(&mut self) {
+    pub fn stop(&mut self, ent: &mut Ent) {
         // Cancel all orders
-        self.clear_orders();
+        ent.clear_orders();
         // Set state to stopped
         self.stop_attacking();
-        self.ent.state = State::Stop;
+        ent.state = State::Stop;
         self.clear_velocity();
     }
 
     // This method executes a hold position order to the unit
     // Hold position order clears velocity, and sets state to Hold
     // It also clears orders, meaning it removes itself. pretty handy.
-    fn hold_position(&mut self) {
+    fn hold_position(&mut self, ent: &mut Ent) {
         // Cancel all orders, but the hold position order so it gets cleared normally
-        self.clear_all_but_current_order();
+        self.clear_all_but_current_order(ent);
         // Stop moving
         self.clear_velocity();
         // Set state to hold
-        self.ent.state = State::Hold;
+        ent.state = State::Hold;
     }
 
     pub fn stop_attacking(&mut self) {
@@ -412,9 +400,9 @@ impl Unit {
         self.attack_line_render_latch_point_delta = None;
     }
 
-    pub fn start_attacking(&mut self, attack_target_rect: Rect) {
+    pub fn start_attacking(&mut self, ent: &mut Ent, attack_target_rect: Rect) {
         self.clear_velocity();
-        self.ent.state = State::Busy;
+        ent.state = State::Busy;
         let mut rng = rand::thread_rng();
         self.is_attacking = true;
         self.attack_line_render_latch_point_delta = Some(Point::new(
@@ -429,21 +417,22 @@ impl Unit {
         ));
     }
 
-    pub fn has_target_in_hover_distance(&self, target: Vector2D<f32>) -> bool {
-        let rect_center = self.ent.get_rect().center();
+    pub fn has_target_in_hover_distance(&self, ent: &mut Ent, target: Vector2D<f32>) -> bool {
+        let rect_center = ent.get_rect().center();
         (target - Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32)).length()
             <= FOLLOW_ORDER_HOVER_DISTANCE
     }
 
     pub fn has_target_in_range_from_id(
         &self,
+        ent: &mut Ent,
         world_info: &WorldInfo,
         target_id: EntID,
     ) -> (bool, f32) {
         let target_pos = world_info
             .get_ent_rect_center_poisition_by_id(target_id)
             .expect(">> Could not find attack target position from world info");
-        let self_rect_center = self.ent.get_rect().center();
+        let self_rect_center = ent.get_rect().center();
         let distance = (Vector2D::<f32>::new(self_rect_center.x as f32, self_rect_center.y as f32)
             - target_pos)
             .length();
@@ -452,9 +441,10 @@ impl Unit {
 
     pub fn has_target_in_range_from_rect_center(
         &self,
+        ent: &mut Ent,
         target_position: Vector2D<f32>,
     ) -> (bool, f32) {
-        let self_rect_center = self.ent.get_rect().center();
+        let self_rect_center = ent.get_rect().center();
         let distance = (Vector2D::<f32>::new(self_rect_center.x as f32, self_rect_center.y as f32)
             - target_position)
             .length();
@@ -463,6 +453,7 @@ impl Unit {
 
     pub fn get_closest_target_in_range(
         &mut self,
+        ent: &mut Ent,
         world_info: &mut WorldInfo,
     ) -> (bool, EntTarget, f32) {
         // Check if any other unit is in range; if so, issue attack order to the closest one
@@ -474,21 +465,21 @@ impl Unit {
         let mut has_target_in_range = false;
         let mut closest_ent_distance = self.range;
         for (ent_id, ent_rect_center) in &world_info.ent_rect_center {
-            if *ent_id == self.ent.id {
+            if *ent_id == ent.id {
                 // Cannot target self; return early
                 continue;
             }
             if world_info
                 .get_ent_owner_by_id(*ent_id)
                 .expect(">> Could not find ent team by id")
-                == self.ent.owner
+                == ent.owner
             {
                 // Cannot targert an ent on the same team; return early
                 continue;
             }
 
             let (is_in_range, distance) =
-                self.has_target_in_range_from_rect_center(*ent_rect_center);
+                self.has_target_in_range_from_rect_center(ent, *ent_rect_center);
 
             if !is_in_range {
                 // Too far away; return early
@@ -518,26 +509,26 @@ impl Unit {
         )
     }
 
-    pub fn has_arrived_at(&self, target: Vector2D<f32>) -> bool {
-        let rect_center = self.ent.get_rect().center();
+    pub fn has_arrived_at(&self, ent: &mut Ent, target: Vector2D<f32>) -> bool {
+        let rect_center = ent.get_rect().center();
         (target - Vector2D::<f32>::new(rect_center.x as f32, rect_center.y as f32)).length()
             <= MAX_MOVE_ORDER_ERROR
     }
 
-    fn check_surroundings(&mut self, world_info: &mut WorldInfo) {
+    fn check_surroundings(&mut self, ent: &mut Ent, world_info: &mut WorldInfo) {
         // Checks for Alert & Hold state
         // An alert unit has no pending orders in its queue
         // It should actively seek to attack enemy units that appear in its range
         // Hold units behave similarly, but issue lazy attacks instead (won't chase)
-        if vec![State::Alert, State::Hold].contains(&self.ent.state) {
+        if vec![State::Alert, State::Hold].contains(&ent.state) {
             let (has_target_in_range, closest_ent_in_range, _) =
-                self.get_closest_target_in_range(world_info);
+                self.get_closest_target_in_range(ent, world_info);
             if has_target_in_range {
                 let ent_rect = closest_ent_in_range
                     .ent_rect
                     .expect(">> Could not find ent rect by id");
                 let attack_order = Order::new(
-                    if self.ent.state == State::Alert {
+                    if ent.state == State::Alert {
                         OrderType::Attack
                     } else {
                         OrderType::LazyAttack
@@ -547,20 +538,21 @@ impl Unit {
                 );
                 // Issue attack order to closest in-range target
                 // Bump it so that it takes precedence over this attack move order
-                self.bump_order(attack_order);
+                ent.bump_order(attack_order);
             }
         }
     }
 
     fn execute_next_order(
         &mut self,
+        ent: &mut Ent,
         next_order: Order,
         next_order_direction_option: Option<Vector2D<f32>>,
         world_info: &mut WorldInfo,
     ) -> bool {
         match next_order.order_type {
             OrderType::Move => {
-                self.ent.state = State::Busy;
+                ent.state = State::Busy;
                 self.stop_attacking();
                 self.set_velocity(next_order_direction_option.expect(
                     ">> Could not set unit velocity; current order did not produce a direction vector",
@@ -570,17 +562,17 @@ impl Unit {
                 let possible_attack_target = &next_order.ent_target;
                 if possible_attack_target.ent_id.is_none() {
                     // No more target, attack is done!
-                    return self.cancel_attack_order(next_order);
+                    return self.cancel_attack_order(ent, next_order);
                 }
                 let attack_target_id = possible_attack_target
                     .ent_id
                     .expect(">> Could not find attack target id from current order");
                 if !world_info.has_ent_by_id(attack_target_id) {
                     // No more target, attack is done!
-                    return self.cancel_attack_order(next_order);
+                    return self.cancel_attack_order(ent, next_order);
                 }
                 if self
-                    .has_target_in_range_from_id(world_info, attack_target_id)
+                    .has_target_in_range_from_id(ent, world_info, attack_target_id)
                     .0
                 {
                     // If target is in range, check if already attacking
@@ -588,7 +580,7 @@ impl Unit {
                         world_info.damage_ent(attack_target_id, self.damage * TIME_STEP);
                     } else {
                         // Else, start attacking
-                        self.start_attacking(possible_attack_target.ent_rect.expect(">> Could not get ent rect from attack target, but could find rect center position in world info?"));
+                        self.start_attacking(ent, possible_attack_target.ent_rect.expect(">> Could not get ent rect from attack target, but could find rect center position in world info?"));
                     }
                 } else {
                     // If target is not in range, check order type
@@ -600,13 +592,13 @@ impl Unit {
                         // And mark as not attacking
                         self.stop_attacking()
                     } else {
-                        return self.cancel_attack_order(next_order);
+                        return self.cancel_attack_order(ent, next_order);
                     }
                 }
-                self.ent.state = State::Busy;
+                ent.state = State::Busy;
             }
             OrderType::AttackMove => {
-                self.ent.state = State::Alert;
+                ent.state = State::Alert;
                 self.stop_attacking();
                 self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
             }
@@ -627,7 +619,7 @@ impl Unit {
                     // Return true for a completed order
                     return true;
                 }
-                if self.has_target_in_hover_distance(next_order.current_move_target) {
+                if self.has_target_in_hover_distance(ent, next_order.current_move_target) {
                     self.clear_velocity();
                 } else {
                     self.set_velocity(next_order_direction_option.expect(
@@ -635,17 +627,17 @@ impl Unit {
                     ));
                 }
                 self.stop_attacking();
-                self.ent.state = State::Busy;
+                ent.state = State::Busy;
             }
             OrderType::HoldPosition => {
-                self.hold_position();
+                self.hold_position(ent);
                 return true;
             }
         }
         false
     }
 
-    fn cancel_attack_order(&mut self, next_order: Order) -> bool {
+    fn cancel_attack_order(&mut self, ent: &mut Ent, next_order: Order) -> bool {
         // Check if this is actualy an attack order
         // Note: If new attack order types are added, this vec macro needs updating...
         if !vec![OrderType::Attack, OrderType::LazyAttack].contains(&next_order.order_type) {
@@ -658,7 +650,7 @@ impl Unit {
         // If lazy attack: set state to hold
         match next_order.order_type {
             OrderType::Attack => self.clear_velocity(),
-            OrderType::LazyAttack => self.ent.state = State::Hold,
+            OrderType::LazyAttack => ent.state = State::Hold,
             _ => (),
         }
         // Return true for a completed order
