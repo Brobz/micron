@@ -514,7 +514,6 @@ impl Unit {
         }
     }
 
-    // TODO: BREAKUP THIS METHOD INTO SMALLER METHODS
     fn execute_next_order(
         &mut self,
         next_order: Order,
@@ -529,28 +528,18 @@ impl Unit {
                     ">> Could not set unit velocity; current order did not produce a direction vector",
                 ));
             }
-            OrderType::Attack => {
+            OrderType::Attack | OrderType::LazyAttack => {
                 let possible_attack_target = &next_order.ent_target;
                 if possible_attack_target.ent_id.is_none() {
                     // No more target, attack is done!
-                    // Mark self as not attacking
-                    self.stop_attacking();
-                    // Clear velocity; Attack order could have a unit moving
-                    self.clear_velocity();
-                    // Return true for a completed order
-                    return true;
+                    return self.cancel_attack_order(next_order);
                 }
                 let attack_target_id = possible_attack_target
                     .ent_id
                     .expect(">> Could not find attack target id from current order");
                 if !world_info.has_ent_by_id(attack_target_id) {
                     // No more target, attack is done!
-                    // Mark self as not attacking
-                    self.stop_attacking();
-                    // Clear velocity; Attack order could have a unit moving
-                    self.clear_velocity();
-                    // Return true for a completed order
-                    return true;
+                    return self.cancel_attack_order(next_order);
                 }
                 if self
                     .has_target_in_range_from_id(world_info, attack_target_id)
@@ -564,10 +553,17 @@ impl Unit {
                         self.start_attacking(possible_attack_target.ent_rect.expect(">> Could not get ent rect from attack target, but could find rect center position in world info?"));
                     }
                 } else {
-                    // If target is not in range, move towards it
-                    self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
-                    // Mark as not attacking
-                    self.stop_attacking()
+                    // If target is not in range, check order type
+                    // If regular attack, chase
+                    // If lazy attack, complete order
+                    if next_order.order_type == OrderType::Attack {
+                        // If normal attack move towards it
+                        self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
+                        // And mark as not attacking
+                        self.stop_attacking()
+                    } else {
+                        return self.cancel_attack_order(next_order);
+                    }
                 }
                 self.ent.state = State::Busy;
             }
@@ -603,63 +599,31 @@ impl Unit {
                 self.stop_attacking();
                 self.ent.state = State::Busy;
             }
-            OrderType::LazyAttack => {
-                let possible_attack_target = &next_order.ent_target;
-                if possible_attack_target.ent_id.is_none() {
-                    // No more target, Lazy Attack is done!
-                    // Mark self as not attacking
-                    self.stop_attacking();
-                    // Note: Since lazy attacks only occur while holding poisitiong (FOR NOW),
-                    // We must set this unit's state from Busy back to Hold after its done with the lazy attack
-                    self.ent.state = State::Hold;
-                    // Return true for a completed order
-                    return true;
-                }
-                let attack_target_id = possible_attack_target
-                    .ent_id
-                    .expect(">> Could not find attack target id from current order");
-                if !world_info.has_ent_by_id(attack_target_id) {
-                    // No more target, Lazy Attack is done!
-                    // Mark self as not attacking
-                    self.stop_attacking();
-                    // Note: Since lazy attacks only occur while holding poisitiong (FOR NOW),
-                    // We must set this unit's state from Busy back to Hold after its done with the lazy attack
-                    self.ent.state = State::Hold;
-                    // Return true for a completed order
-                    return true;
-                }
-                if self
-                    .has_target_in_range_from_id(world_info, attack_target_id)
-                    .0
-                {
-                    // If target is in range, check if already attacking
-                    if self.is_attacking {
-                        // Already attacking, try to deal damage
-                        world_info.damage_ent(attack_target_id, self.damage * TIME_STEP);
-                    } else {
-                        // Else, start attacking
-                        self.start_attacking(
-                            world_info
-                                .get_ent_rect_by_id(attack_target_id)
-                                .expect(">> Could not get entity rect by id from attack target"),
-                        );
-                    }
-                    // Return false for an executed, but incomplete order
-                    return false;
-                }
-                // If not in range, Lazy Attack is done!
-                self.stop_attacking();
-                // Note: Since lazy attacks only occur while holding poisitiong (FOR NOW),
-                // We must set this unit's state from Busy back to Hold after its done with the lazy attack
-                self.ent.state = State::Hold;
-                // Return true for a completed order
-                return true;
-            }
             OrderType::HoldPosition => {
                 self.hold_position();
                 return true;
             }
         }
         false
+    }
+
+    fn cancel_attack_order(&mut self, next_order: Order) -> bool {
+        // Check if this is actualy an attack order
+        // Note: If new attack order types are added, this vec macro needs updating...
+        if !vec![OrderType::Attack, OrderType::LazyAttack].contains(&next_order.order_type) {
+            // Return false for an uncompleted order
+            return false;
+        }
+        // Mark self as not attacking
+        self.stop_attacking();
+        // If regular attack: Clear velocity; Attack order could have a unit moving
+        // If lazy attack: set state to hold
+        match next_order.order_type {
+            OrderType::Attack => self.clear_velocity(),
+            OrderType::LazyAttack => self.ent.state = State::Hold,
+            _ => (),
+        }
+        // Return true for a completed order
+        true
     }
 }
