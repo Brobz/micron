@@ -13,6 +13,7 @@ pub enum OrderType {
     HoldPosition,
 }
 
+#[derive(Copy, Clone, PartialEq)]
 pub struct Order {
     pub order_type: OrderType,
     pub executed: bool,
@@ -21,6 +22,7 @@ pub struct Order {
     pub ent_target: EntTarget,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct EntTarget {
     pub ent_id: Option<EntID>,
     pub ent_rect: Option<Rect>,

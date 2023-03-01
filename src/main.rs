@@ -4,7 +4,6 @@
 // TODO:
 //  Some important backlog stuff
 //  ??. Change selection bools to a enum State type of deal (check clipy::pedantic)
-//  ??. Make standard methods for repeated ocurrances in unit logic, such as checking distance between two positions, the attack order computations, etc..
 //  ??. Limit framerate somehow (try using sdl2_timing)?
 //  ??. Figure out a way to only draw required orders (i.e. a selection of units gets shift moved around; all but the line from unit to first waypoint will be redrawn uselessly)
 //      ==> This MASSIVELY boosts performace, not drawing orders for 1k units eliminates all lag when queuing. this would effectively cut 90% of the orders to draw out
@@ -72,7 +71,7 @@ fn main() -> Result<(), String> {
     let mut world_info = WorldInfo::new();
     let mut camera = Camera::new();
 
-    spawn_debug_ents(500, &mut world, &mut world_info);
+    spawn_debug_ents(50, &mut world, &mut world_info);
 
     loop {
         //////////////////////// USER INPUT /////////////////////////
