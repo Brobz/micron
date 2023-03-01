@@ -1,22 +1,18 @@
 use sdl2::{
-    pixels::Color,
     rect::Rect,
     render::{Canvas, TextureCreator},
     ttf::Font,
     video::{Window, WindowContext},
 };
 
-use super::camera::Camera;
+use super::{camera::Camera, ui_element::UIElement};
 
-pub struct TextLabel {
-    label: String,
-    color: Color,
-    rect: Rect,
-}
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct TextLabel {}
 
 impl TextLabel {
-    pub fn new(label: String, color: Color, rect: Rect) -> Self {
-        Self { label, rect, color }
+    pub fn new() -> Self {
+        Self {}
     }
 
     pub fn draw(
@@ -25,9 +21,10 @@ impl TextLabel {
         texture_creator: &TextureCreator<WindowContext>,
         font: &Font,
         camera: &Camera,
+        ui_element: &UIElement,
     ) {
         // render a surface, and convert it to a texture bound to the canvas
-        let surface = font.render(&self.label).blended(self.color);
+        let surface = font.render(&ui_element.label).blended(ui_element.color);
 
         match surface {
             Ok(surface) => {
@@ -40,12 +37,12 @@ impl TextLabel {
                                 &texture,
                                 None,
                                 Some(Rect::new(
-                                    (self.rect.x as f32 / camera.scale.x) as i32
+                                    (ui_element.rect.x as f32 / camera.scale.x) as i32
                                         - camera.position.x,
-                                    (self.rect.y as f32 / camera.scale.y) as i32
+                                    (ui_element.rect.y as f32 / camera.scale.y) as i32
                                         - camera.position.y,
-                                    (self.rect.width() as f32 / camera.scale.x) as u32,
-                                    (self.rect.height() as f32 / camera.scale.y) as u32,
+                                    (ui_element.rect.width() as f32 / camera.scale.x) as u32,
+                                    (ui_element.rect.height() as f32 / camera.scale.y) as u32,
                                 )),
                             )
                             .ok();
@@ -55,9 +52,5 @@ impl TextLabel {
             }
             Err(_) => todo!(),
         }
-    }
-
-    pub fn set_label(&mut self, new_label: String) {
-        self.label = new_label;
     }
 }

@@ -35,6 +35,9 @@ mod structs;
 
 use consts::values::{BLACK_RGB, SCREEN_HEIGHT, SCREEN_WIDTH};
 use sdl2::rect::Rect;
+use structs::ui::UI;
+use structs::ui_element::{UIElement, UIElementID};
+use structs::ui_object::UIObject;
 use structs::{camera::Camera, text_label::TextLabel};
 
 use structs::input::Input;
@@ -64,15 +67,10 @@ fn main() -> Result<(), String> {
         .build()
         .expect(">> Could not build canvas from window");
 
-    let texture_creator = canvas.texture_creator();
-
     // Load a font
     // TODO: Do this in UI object eventually
     let mut font = ttf_context.load_font("assets/fonts/FiraCode-Retina.ttf", 128)?;
     font.set_style(sdl2::ttf::FontStyle::BOLD);
-
-    let mut test_label =
-        TextLabel::new("TESTING".to_owned(), BLACK_RGB, Rect::new(10, 10, 175, 50));
 
     let mut event_queue = sdl_context
         .event_pump()
@@ -81,7 +79,17 @@ fn main() -> Result<(), String> {
     let mut world = World::new();
     let mut world_info = WorldInfo::new();
     let mut camera = Camera::new();
+    let mut ui = UI::new(&mut canvas);
 
+    ui.add_ui_object(&UIObject::TextLabel(
+        UIElement::new(
+            UIElementID::DEBUG_EntCount,
+            "TESTING".to_owned(),
+            BLACK_RGB,
+            Rect::new(10, 10, 150, 75),
+        ),
+        TextLabel::new(),
+    ));
     spawn_debug_ents(500, &mut world, &mut world_info);
 
     loop {
@@ -98,16 +106,16 @@ fn main() -> Result<(), String> {
         // Tick World
         world.tick(&mut world_info);
 
+        // Tick UI
+        ui.tick(&world, &world_info);
+
         //////////////////////// RENDER GAME STATE /////////////////////////
 
         // Draw World
         world.draw(&mut canvas, &mut world_info, &mut camera);
 
         // Draw UI
-        // TODO: Have ui object contain all labels, buttons, etc..
-        //      -> draw it and tick it
-        test_label.set_label("Live Ents: ".to_owned() + &world.game_objects.len().to_string());
-        test_label.draw(&mut canvas, &texture_creator, &font, &camera);
+        ui.draw(&mut canvas, &font, &camera);
 
         // Refresh screen
         canvas.present();
