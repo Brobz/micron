@@ -33,8 +33,9 @@
 mod consts;
 mod structs;
 
-use consts::values::{SCREEN_HEIGHT, SCREEN_WIDTH};
-use structs::camera::Camera;
+use consts::values::{BLACK_RGB, SCREEN_HEIGHT, SCREEN_WIDTH};
+use sdl2::rect::Rect;
+use structs::{camera::Camera, text_label::TextLabel};
 
 use structs::input::Input;
 use structs::world_info::WorldInfo;
@@ -47,6 +48,7 @@ use crate::setup::*;
 
 fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
+    let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
     let video_subsystem = sdl_context.video()?;
     let window = video_subsystem
         .window("micron!", SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -61,6 +63,16 @@ fn main() -> Result<(), String> {
         .present_vsync()
         .build()
         .expect(">> Could not build canvas from window");
+
+    let texture_creator = canvas.texture_creator();
+
+    // Load a font
+    // TODO: Do this in UI object eventually
+    let mut font = ttf_context.load_font("assets/fonts/FiraCode-Retina.ttf", 128)?;
+    font.set_style(sdl2::ttf::FontStyle::BOLD);
+
+    let mut test_label =
+        TextLabel::new("TESTING".to_owned(), BLACK_RGB, Rect::new(10, 10, 175, 50));
 
     let mut event_queue = sdl_context
         .event_pump()
@@ -90,6 +102,12 @@ fn main() -> Result<(), String> {
 
         // Draw World
         world.draw(&mut canvas, &mut world_info, &mut camera);
+
+        // Draw UI
+        // TODO: Have ui object contain all labels, buttons, etc..
+        //      -> draw it and tick it
+        test_label.set_label("Live Ents: ".to_owned() + &world.game_objects.len().to_string());
+        test_label.draw(&mut canvas, &texture_creator, &font, &camera);
 
         // Refresh screen
         canvas.present();

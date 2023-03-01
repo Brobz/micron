@@ -5,6 +5,7 @@ pub mod input;
 pub mod order;
 pub mod selection;
 pub mod structure;
+pub mod text_label;
 pub mod unit;
 pub mod world;
 pub mod world_info;
