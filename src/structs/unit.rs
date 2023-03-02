@@ -550,7 +550,7 @@ impl Unit {
             if has_target_in_range {
                 // Check if the target is an ore
                 // In wich case attack move should NOT consider it (its attack move, not mine move... for now)
-                if closest_ent_in_range.ent_parent_type == Some(EntParentType::Ore) {
+                if closest_ent_in_range.ent_parent_type == Some(EntParentType::OrePatch) {
                     // Indeed the case, return early;
                     return;
                 }
@@ -666,7 +666,7 @@ impl Unit {
             OrderType::Mine => {
                 // TODO: Add actual mining, for now it will just follow the ore
                 //      => 1. Damage the ore with a special unit type dependant penalty to the unit dmg (miner will have no penalty, but low dmg)
-                //      => 2. After a certain amount of dmg, dependant on ore patch density, some ore will be dropped (TODO: rename ore.rs to ore_patch.rs?)
+                //      => 2. After a certain amount of dmg, dependant on ore patch density, some ore will be dropped
                 //      => 3. Unit mining stores this ore on itself (maybe up to a certain carry_capacity, and with some increase to its mass  so its more clumsy (?)
                 //                                                  or just a speed debuff for carrying (maybe no attacking att full cap, must drop to attack?))
                 //      => 4. Unit must beam ore back into mainframe for collection and later use

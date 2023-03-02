@@ -14,7 +14,7 @@ use super::order::Order;
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum EntParentType {
     Unit,
-    Ore,
+    OrePatch,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -71,7 +71,7 @@ impl Ent {
             hp: max_hp as f32,
             color: if owner == Owner::Player {
                 Color::RGB(0, 100, 100)
-            } else if parent_type == EntParentType::Ore {
+            } else if parent_type == EntParentType::OrePatch {
                 BLUE_RGB
             } else {
                 RED_RGB

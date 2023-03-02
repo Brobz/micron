@@ -3,5 +3,5 @@ use crate::structs::{ent::Ent, ore_patch::OrePatch, structure::Structure, unit::
 pub enum GameObject {
     Unit(Ent, Unit),
     Structure(Ent, Structure),
-    Ore(Ent, OrePatch),
+    OrePatch(Ent, OrePatch),
 }

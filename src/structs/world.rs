@@ -38,12 +38,12 @@ impl World {
                         ent_cleanup_list.push(ent.id);
                     }
                 }
-                GameObject::Ore(ent, ore) =>
+                GameObject::OrePatch(ent, ore_patch) =>
                 // Check if this unit's entity still exists in the world
                 {
                     if world_info.has_ent(ent) {
                         // If so, tick and update world_info
-                        ore.tick(ent, world_info);
+                        ore_patch.tick(ent, world_info);
                         world_info.update_ent(ent);
                     } else {
                         // If not, add to cleanup list
@@ -56,9 +56,9 @@ impl World {
 
         // Remove dead units
         self.game_objects.retain(|game_object| match game_object {
-            GameObject::Unit(ent, _) | GameObject::Structure(ent, _) | GameObject::Ore(ent, _) => {
-                !ent_cleanup_list.contains(&ent.id)
-            }
+            GameObject::Unit(ent, _)
+            | GameObject::Structure(ent, _)
+            | GameObject::OrePatch(ent, _) => !ent_cleanup_list.contains(&ent.id),
         });
 
         // Tick orders
@@ -131,7 +131,7 @@ impl World {
                     unit.draw_orders(ent, canvas);
                 }
                 GameObject::Structure(_ent, _structure) => todo!(),
-                GameObject::Ore(_ent, _ore) => (),
+                GameObject::OrePatch(_ent, _ore) => (),
             }
         }
 
@@ -141,7 +141,7 @@ impl World {
                 GameObject::Unit(ent, unit) => {
                     unit.draw(ent, canvas);
                 }
-                GameObject::Ore(ent, ore) => ore.draw(ent, canvas),
+                GameObject::OrePatch(ent, ore_patch) => ore_patch.draw(ent, canvas),
                 GameObject::Structure(_ent, _structure) => todo!(),
             }
         }
@@ -153,7 +153,7 @@ impl World {
                     unit.draw_attack_lines(ent, canvas);
                 }
                 GameObject::Structure(_ent, _structure) => todo!(),
-                GameObject::Ore(_ent, _ore) => (),
+                GameObject::OrePatch(_ent, _ore) => (),
             }
         }
 

@@ -36,7 +36,7 @@ pub fn spawn_debug_ents(n: i32, world: &mut World, world_info: &mut WorldInfo) {
     }
 
     let new_ent = Ent::new(
-        EntParentType::Ore,
+        EntParentType::OrePatch,
         Owner::Nature,
         100,
         Vector2D::<f32>::new(
@@ -46,7 +46,7 @@ pub fn spawn_debug_ents(n: i32, world: &mut World, world_info: &mut WorldInfo) {
         Point::new(rng.gen_range(5..50), rng.gen_range(5..50)),
     );
     world_info.add_ent(&new_ent);
-    world.game_objects.push(GameObject::Ore(
+    world.game_objects.push(GameObject::OrePatch(
         new_ent,
         OrePatch::new(OreType::Blue, 10, 5),
     ));

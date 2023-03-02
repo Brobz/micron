@@ -47,7 +47,7 @@ impl Selection {
                 match game_object {
                     GameObject::Unit(ent, _)
                     | GameObject::Structure(ent, _)
-                    | GameObject::Ore(ent, _) => ent.deselect(),
+                    | GameObject::OrePatch(ent, _) => ent.deselect(),
                 }
             }
             self.clearing = false;
@@ -72,7 +72,7 @@ impl Selection {
                 match game_object {
                     GameObject::Unit(ent, _)
                     | GameObject::Structure(ent, _)
-                    | GameObject::Ore(ent, _) => {
+                    | GameObject::OrePatch(ent, _) => {
                         let possible_intersection = ent.get_rect().intersection(self.selection_box);
                         if possible_intersection.is_some() {
                             // Flag that this selection grabbed at least one ent

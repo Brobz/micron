@@ -185,7 +185,7 @@ impl Input {
             match game_object {
                 GameObject::Unit(ent, _)
                 | GameObject::Structure(ent, _)
-                | GameObject::Ore(ent, _) => {
+                | GameObject::OrePatch(ent, _) => {
                     if ent
                         .get_rect()
                         .has_intersection(camera.get_scaled_mouse_rect())
@@ -217,8 +217,8 @@ impl Input {
                         // Attack command engage
                         // This could either trigger a direct attack or an attack move
                         // If the target is an ore, it should trigger a mine command
-                        let target_is_ore =
-                            click_target.ent_parent_type == Some(EntParentType::Ore);
+                        let target_is_ore_patch =
+                            click_target.ent_parent_type == Some(EntParentType::OrePatch);
                         for game_object in &mut world.game_objects {
                             match game_object {
                                 GameObject::Unit(ent, _) => {
@@ -257,7 +257,7 @@ impl Input {
                                             }
                                             // Now we know we will either attack or mine from this target!
                                             // Check ent parent type to know what to do
-                                            let new_order_type = if target_is_ore {
+                                            let new_order_type = if target_is_ore_patch {
                                                 OrderType::Mine
                                             } else {
                                                 OrderType::Attack
@@ -299,7 +299,7 @@ impl Input {
                     match game_object {
                         GameObject::Unit(ent, _)
                         | GameObject::Structure(ent, _)
-                        | GameObject::Ore(ent, _) => {
+                        | GameObject::OrePatch(ent, _) => {
                             if ent
                                 .get_rect()
                                 .has_intersection(camera.get_scaled_mouse_rect())
@@ -342,18 +342,19 @@ impl Input {
                                         continue;
                                     }
                                     // At this point, we know we will either attack, follow or mine this target, depending on it's type and team
-                                    let new_order_type =
-                                        if click_target.ent_parent_type == Some(EntParentType::Ore)
-                                        {
-                                            OrderType::Mine
-                                        } else if click_target.ent_owner.expect(
-                                            ">> Could not get identity team from attack target",
-                                        ) == ent.owner
-                                        {
-                                            OrderType::Follow
-                                        } else {
-                                            OrderType::Attack
-                                        };
+                                    let new_order_type = if click_target.ent_parent_type
+                                        == Some(EntParentType::OrePatch)
+                                    {
+                                        OrderType::Mine
+                                    } else if click_target
+                                        .ent_owner
+                                        .expect(">> Could not get identity team from attack target")
+                                        == ent.owner
+                                    {
+                                        OrderType::Follow
+                                    } else {
+                                        OrderType::Attack
+                                    };
 
                                     let new_order = Order::new(
                                         new_order_type,
