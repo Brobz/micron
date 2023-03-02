@@ -2,6 +2,7 @@ pub mod camera;
 pub mod ent;
 pub mod input;
 pub mod order;
+pub mod ore;
 pub mod selection;
 pub mod structure;
 pub mod text_label;

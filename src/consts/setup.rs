@@ -5,7 +5,8 @@ use vector2d::Vector2D;
 use crate::{
     enums::game_object::GameObject,
     structs::{
-        ent::{Ent, Owner},
+        ent::{Ent, EntParentType, Owner},
+        ore::{Ore, OreType},
         unit::Unit,
         world::World,
         world_info::WorldInfo,
@@ -19,6 +20,7 @@ pub fn spawn_debug_ents(n: i32, world: &mut World, world_info: &mut WorldInfo) {
     let mut rng = rand::thread_rng();
     for i in 0..n {
         let new_ent = Ent::new(
+            EntParentType::Unit,
             if i < n / 2 { Owner::Player } else { Owner::Cpu },
             100,
             Vector2D::<f32>::new(
@@ -32,4 +34,19 @@ pub fn spawn_debug_ents(n: i32, world: &mut World, world_info: &mut WorldInfo) {
             .game_objects
             .push(GameObject::Unit(new_ent, Unit::new()));
     }
+
+    let new_ent = Ent::new(
+        EntParentType::Ore,
+        Owner::Nature,
+        100,
+        Vector2D::<f32>::new(
+            rng.gen_range(500..750) as f32,
+            rng.gen_range(650..850) as f32,
+        ),
+        Point::new(rng.gen_range(5..50), rng.gen_range(5..50)),
+    );
+    world_info.add_ent(&new_ent);
+    world
+        .game_objects
+        .push(GameObject::Ore(new_ent, Ore::new(OreType::Blue, 10, 5)));
 }

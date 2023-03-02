@@ -1,11 +1,12 @@
 use sdl2::rect::Rect;
 use vector2d::Vector2D;
 
-use super::ent::{EntID, Owner};
+use super::ent::{EntID, EntParentType, Owner};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum OrderType {
     Move,
+    Mine,
     Follow,
     Attack,
     LazyAttack,
@@ -27,6 +28,7 @@ pub struct EntTarget {
     pub ent_id: Option<EntID>,
     pub ent_rect: Option<Rect>,
     pub ent_owner: Option<Owner>,
+    pub ent_parent_type: Option<EntParentType>,
 }
 
 impl Order {

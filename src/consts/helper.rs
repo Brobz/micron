@@ -10,7 +10,7 @@ use crate::{
     enums::game_object::GameObject,
     structs::{
         ent::{EntID, Owner},
-        order::Order,
+        order::{EntTarget, Order},
         world::World,
     },
 };
@@ -79,7 +79,7 @@ pub fn draw_selection_border(canvas: &mut Canvas<Window>, ent_rect: &Rect, color
 pub fn select_all_army(world: &mut World) {
     for game_object in &mut world.game_objects {
         match game_object {
-            GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+            GameObject::Unit(ent, _) => {
                 if ent.owner == Owner::Player {
                     // TODO: FOR NOW, all units are army; soon this will change
                     //      if unit.type is army type or whatever
@@ -88,7 +88,17 @@ pub fn select_all_army(world: &mut World) {
                     ent.deselect();
                 }
             }
+            _ => {}
         }
     }
     world.selection.open = false;
+}
+
+pub fn empty_ent_target() -> EntTarget {
+    EntTarget {
+        ent_id: None,
+        ent_rect: None,
+        ent_owner: None,
+        ent_parent_type: None,
+    }
 }

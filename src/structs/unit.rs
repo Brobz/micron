@@ -8,18 +8,20 @@ use sdl2::rect::{Point, Rect};
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-use crate::consts::helper::{draw_selection_border, draw_waypoint, get_direction_from_to};
+use crate::consts::helper::{
+    draw_selection_border, draw_waypoint, empty_ent_target, get_direction_from_to,
+};
 use crate::consts::values::{
     ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_MASS, BASE_UNIT_RANGE, BASE_UNIT_SPEED,
     BLACK_RGB, FOLLOW_ORDER_HOVER_DISTANCE, GREY_RGB, MAX_MOVE_ORDER_ERROR, ORANGE_RGB,
     RED_RGBA_WEAK, SELECTION_ATTACK_TARGET_BORDER_COLOR, SELECTION_BORDER_COLOR,
-    SELECTION_FOLLOW_TARGET_BORDER_COLOR, TIME_STEP,
+    SELECTION_FOLLOW_TARGET_BORDER_COLOR, SELECTION_MINE_TARGET_BORDER_COLOR, TIME_STEP,
 };
 use crate::ent::Ent;
 
 use crate::order::{Order, OrderType};
 
-use super::ent::{EntID, Owner, State};
+use super::ent::{EntID, EntParentType, Owner, State};
 use super::order::EntTarget;
 use super::world_info::WorldInfo;
 
@@ -165,6 +167,7 @@ impl Unit {
                 }
                 OrderType::Follow => canvas.set_draw_color(SELECTION_FOLLOW_TARGET_BORDER_COLOR),
                 OrderType::HoldPosition => canvas.set_draw_color(ORANGE_RGB),
+                OrderType::Mine => canvas.set_draw_color(SELECTION_MINE_TARGET_BORDER_COLOR),
             }
             if i == 0 {
                 // If this is the next order, draw  a line from unit to waypoint
@@ -224,8 +227,18 @@ impl Unit {
                         )
                     }
                 }
-                // In case of hold position, do nothing for now
+                // In case of hold position, draw waypoint
                 OrderType::HoldPosition => draw_waypoint(*order, canvas),
+                // In case of mining, draw white selection border on mine target
+                OrderType::Mine => {
+                    if let Some(mine_target_rect) = &order.ent_target.ent_rect {
+                        draw_selection_border(
+                            canvas,
+                            mine_target_rect,
+                            SELECTION_MINE_TARGET_BORDER_COLOR,
+                        )
+                    }
+                }
             }
         }
     }
@@ -357,13 +370,15 @@ impl Unit {
                     // A follow order can never be completed!
                     // It can only get cleard or canceled (if the followed unit dies)
                     // To complete an attack or lazy attack order, the target must be DEAD!
+                    // To complete a mine order, ore must be destroyed (emptied)!
                     // That gets checked right before trying to attack it during execution,
                     // So it can get completed and cleaned up there as well.
                     // Same thing with HoldPosition, gets cleared right after execution.
                     OrderType::LazyAttack
                     | OrderType::Attack
                     | OrderType::Follow
-                    | OrderType::HoldPosition => (),
+                    | OrderType::HoldPosition
+                    | OrderType::Mine => (),
                 }
             }
             if did_complete_order {
@@ -469,11 +484,7 @@ impl Unit {
         world_info: &mut WorldInfo,
     ) -> (bool, EntTarget, f32) {
         // Check if any other unit is in range; if so, issue attack order to the closest one
-        let mut closest_ent_in_range = EntTarget {
-            ent_id: None,
-            ent_rect: None,
-            ent_owner: None,
-        };
+        let mut closest_ent_in_range = empty_ent_target();
         let mut has_target_in_range = false;
         let mut closest_ent_distance = self.range;
         for (ent_id, ent_rect_center) in &world_info.ent_rect_center {
@@ -511,6 +522,7 @@ impl Unit {
                             .expect(">> Could not find entity rect by id"),
                     ),
                     ent_owner: world_info.get_ent_owner_by_id(*ent_id),
+                    ent_parent_type: world_info.get_ent_parent_type_by_id(*ent_id),
                 };
             }
         }
@@ -536,6 +548,12 @@ impl Unit {
             let (has_target_in_range, closest_ent_in_range, _) =
                 self.get_closest_target_in_range(ent, world_info);
             if has_target_in_range {
+                // Check if the target is an ore
+                // In wich case attack move should NOT consider it (its attack move, not mine move... for now)
+                if closest_ent_in_range.ent_parent_type == Some(EntParentType::Ore) {
+                    // Indeed the case, return early;
+                    return;
+                }
                 let ent_rect = closest_ent_in_range
                     .ent_rect
                     .expect(">> Could not find ent rect by id");
@@ -644,6 +662,42 @@ impl Unit {
             OrderType::HoldPosition => {
                 self.hold_position(ent);
                 return true;
+            }
+            OrderType::Mine => {
+                // TODO: Add actual mining, for now it will just follow the ore
+                //      => 1. Damage the ore with a special unit type dependant penalty to the unit dmg (miner will have no penalty, but low dmg)
+                //      => 2. After a certain amount of dmg, dependant on ore patch density, some ore will be dropped (TODO: rename ore.rs to ore_patch.rs?)
+                //      => 3. Unit mining stores this ore on itself (maybe up to a certain carry_capacity, and with some increase to its mass  so its more clumsy (?)
+                //                                                  or just a speed debuff for carrying (maybe no attacking att full cap, must drop to attack?))
+                //      => 4. Unit must beam ore back into mainframe for collection and later use
+                // Unit should stop moving if it gets within a certain distance of it's mine target
+                // If target is no longer, complete order
+                if next_order.ent_target.ent_id.is_none() {
+                    // No target, order completed!
+                    // Return true for a completed order
+                    return true;
+                }
+                let mine_target_id = next_order
+                    .ent_target
+                    .ent_id
+                    .expect(">> Could not get entity id form follow target");
+                if !world_info.has_ent_by_id(mine_target_id) {
+                    // Target is dead!
+                    // Return true for a completed order
+                    return true;
+                }
+                if self
+                    .has_target_in_range_from_rect_center(ent, next_order.current_move_target)
+                    .0
+                {
+                    self.clear_velocity();
+                } else {
+                    self.set_desired_velocity(next_order_direction_option.expect(
+                        ">> Could not set unit velocity; current order did not produce a direction vector",
+                    ));
+                }
+                self.stop_attacking();
+                ent.state = State::Busy;
             }
         }
         false

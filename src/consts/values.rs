@@ -28,12 +28,12 @@ pub const HEALTH_BAR_Y_FLOAT: f32 = 35.0;
 pub const BASE_UNIT_SPEED: f32 = 150.0; // How fast it can move
 pub const BASE_UNIT_DAMAGE: f32 = 3.0; // How much damage it deals when attacking
 pub const BASE_UNIT_RANGE: f32 = 125.0; // How far away can it attack
-pub const BASE_UNIT_MASS: f32 = 10.0; // How heavy a unit is; Impacts steering
+pub const BASE_UNIT_MASS: f32 = 8.0; // How heavy a unit is; Impacts steering
 pub const ATTACKER_SPEED_PENALTY: f32 = 0.35; // A scalar that gets applied to unit speed while it is attacking
 
 // Order constants
 pub const FOLLOW_ORDER_HOVER_DISTANCE: f32 = 100.0; // Scalar distance that representes how far away from its target a following unit will halt
-pub const MAX_MOVE_ORDER_ERROR: f32 = 3.0; // Maximum distance that a unit can be off from it's move target for it to be considered done with the move order
+pub const MAX_MOVE_ORDER_ERROR: f32 = 5.0; // Maximum distance that a unit can be off from it's move target for it to be considered done with the move order
 
 // Defines a size for selection borders
 pub const SELECTION_BORDER_SIZE: f32 = 8.0;
@@ -50,6 +50,8 @@ pub const SELECTION_BOX_COLOR: Color = Color::RGBA(50, 150, 25, 100);
 pub const SELECTION_ATTACK_TARGET_BORDER_COLOR: Color = Color::RGBA(150, 0, 0, 225);
 // Color of the entity selection follow target border, with alpha
 pub const SELECTION_FOLLOW_TARGET_BORDER_COLOR: Color = Color::RGBA(255, 255, 153, 225);
+// Color of the entity selection follow target border, with alpha
+pub const SELECTION_MINE_TARGET_BORDER_COLOR: Color = Color::RGBA(255, 255, 255, 200);
 // Color of the entity selection border, with alpha
 pub const SELECTION_BORDER_COLOR: Color = Color::RGBA(50, 225, 50, 225);
 
@@ -60,3 +62,6 @@ pub const GREEN_RGB: Color = Color::RGB(0, 255, 0);
 pub const ORANGE_RGB: Color = Color::RGB(255, 25, 255);
 pub const GREY_RGB: Color = Color::RGB(200, 200, 200);
 pub const BLACK_RGB: Color = Color::RGB(0, 0, 0);
+pub const WHITE_RGB: Color = Color::RGB(255, 255, 255);
+pub const YELLOW_RGBA_WEAK: Color = Color::RGBA(255, 255, 0, 200);
+pub const BLUE_RGB: Color = Color::RGB(0, 0, 225);

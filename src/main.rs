@@ -69,7 +69,6 @@ fn main() -> Result<(), String> {
         .expect(">> Could not build canvas from window");
 
     // Load a font
-    // TODO: Do this in UI object eventually
     let mut font = ttf_context.load_font("assets/fonts/FiraCode-Retina.ttf", 128)?;
     font.set_style(sdl2::ttf::FontStyle::BOLD);
 
@@ -87,18 +86,18 @@ fn main() -> Result<(), String> {
             UIElementID::DEBUG_EntCount,
             "Ents: {live_ent_count}".to_owned(),
             BLACK_RGB,
-            Rect::new(10, 10, 150, 75),
+            Rect::new(10, 10, 200, 75),
         ),
         TextLabel::new(),
     ));
-    spawn_debug_ents(10, &mut world, &mut world_info);
+    spawn_debug_ents(500, &mut world, &mut world_info);
 
     loop {
         //////////////////////// USER INPUT /////////////////////////
 
         // Process player input
         // If this method returns false, the window was closed; exit loop
-        if !Input::process_input(&mut event_queue, &mut camera, &mut world, &mut world_info) {
+        if !Input::process_input(&mut event_queue, &mut camera, &mut world) {
             break;
         }
 

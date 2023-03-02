@@ -2,17 +2,19 @@ use sdl2::{event::Event, keyboard::Keycode, mouse::MouseButton, rect::Point, Eve
 use vector2d::Vector2D;
 
 use crate::{
-    consts::{debug_flags::DEBUG_CAN_CONTROL_CPU, helper::select_all_army},
+    consts::{
+        debug_flags::DEBUG_CAN_CONTROL_CPU,
+        helper::{empty_ent_target, select_all_army},
+    },
     enums::game_object::GameObject,
 };
 
 use super::{
     camera::Camera,
-    ent::Owner,
+    ent::{EntParentType, Owner},
     order::{EntTarget, Order, OrderType},
     selection::MouseCommand,
     world::World,
-    world_info::WorldInfo,
 };
 
 // TODO: CLEANUP THIS FILE
@@ -24,7 +26,6 @@ impl Input {
         event_queue: &mut EventPump,
         camera: &mut Camera,
         world: &mut World,
-        world_info: &mut WorldInfo,
     ) -> bool {
         for event in event_queue.poll_iter() {
             match event {
@@ -43,7 +44,7 @@ impl Input {
                 Event::MouseButtonDown {
                     mouse_btn, x, y, ..
                 } => {
-                    Self::process_mouse_button_down(mouse_btn, x, y, camera, world, world_info);
+                    Self::process_mouse_button_down(mouse_btn, x, y, camera, world);
                 }
                 Event::MouseButtonUp {
                     mouse_btn, x, y, ..
@@ -96,7 +97,7 @@ impl Input {
                 } => {
                     for game_object in &mut world.game_objects {
                         match game_object {
-                            GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                            GameObject::Unit(ent, _) => {
                                 if ent.selected()
                                     && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                                 {
@@ -119,15 +120,12 @@ impl Input {
                                     let hold_position_order = Order::new(
                                         OrderType::HoldPosition,
                                         hold_position_spot.unwrap_or(ent.position),
-                                        EntTarget {
-                                            ent_id: None,
-                                            ent_rect: None,
-                                            ent_owner: None,
-                                        },
+                                        empty_ent_target(),
                                     );
                                     ent.add_order(hold_position_order, !world.selection.queueing);
                                 }
                             }
+                            _ => {}
                         }
                     }
                 }
@@ -172,33 +170,31 @@ impl Input {
         y: i32,
         camera: &mut Camera,
         world: &mut World,
-        world_info: &mut WorldInfo,
     ) {
         // First, update mouse position
         camera.update_mouse_rect(Point::new(x, y));
         // Then, get scaled mouse position
         let scaled_mouse_pos = camera.get_scaled_mouse_pos();
-        // This right click might issue an attack order, we will need to store its possible target
-        let mut attack_target = EntTarget {
-            ent_id: None,
-            ent_rect: None,
-            ent_owner: None,
-        };
+        // This right click might issue an attack, mine or follow order, we will need to store its possible target
+        let mut click_target = empty_ent_target();
         // Flag to know if we found at least one target
         let mut found_target = false;
 
         // Check wether we clicked on something attackable
         for game_object in &world.game_objects {
             match game_object {
-                GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                GameObject::Unit(ent, _)
+                | GameObject::Structure(ent, _)
+                | GameObject::Ore(ent, _) => {
                     if ent
                         .get_rect()
                         .has_intersection(camera.get_scaled_mouse_rect())
                     {
-                        attack_target = EntTarget {
+                        click_target = EntTarget {
                             ent_id: Some(ent.id),
                             ent_rect: Some(ent.get_rect()),
                             ent_owner: Some(ent.owner),
+                            ent_parent_type: Some(ent.parent_type()),
                         };
                         found_target = true;
                         break;
@@ -218,9 +214,14 @@ impl Input {
                             .open(scaled_mouse_pos, &mut world.game_objects);
                     }
                     MouseCommand::Attack => {
+                        // Attack command engage
+                        // This could either trigger a direct attack or an attack move
+                        // If the target is an ore, it should trigger a mine command
+                        let target_is_ore =
+                            click_target.ent_parent_type == Some(EntParentType::Ore);
                         for game_object in &mut world.game_objects {
                             match game_object {
-                                GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                                GameObject::Unit(ent, _) => {
                                     if ent.selected()
                                         && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                                     {
@@ -232,11 +233,7 @@ impl Input {
                                                     scaled_mouse_pos.x as f32,
                                                     scaled_mouse_pos.y as f32,
                                                 ),
-                                                EntTarget {
-                                                    ent_id: None,
-                                                    ent_rect: None,
-                                                    ent_owner: None,
-                                                },
+                                                empty_ent_target(),
                                             );
                                             ent.add_order(
                                                 attack_move_order,
@@ -246,36 +243,43 @@ impl Input {
                                             // Attack target found; check if it is a valid one
                                             // (defaults to self in case it's not there, canceling the attack (it should be there tho))
                                             let attack_target_id =
-                                                attack_target.ent_id.unwrap_or(ent.id);
+                                                click_target.ent_id.unwrap_or(ent.id);
                                             if attack_target_id == ent.id {
                                                 // Cannot attack yourself!
                                                 continue;
                                             }
-                                            if attack_target.ent_owner.expect(
+                                            if click_target.ent_owner.expect(
                                                 ">> Could not get entity team from attack target",
                                             ) == ent.owner
                                             {
                                                 // Cannot attack an ent on the same team!
                                                 continue;
                                             }
-                                            let attack_order = Order::new(
-                                                OrderType::Attack,
+                                            // Now we know we will either attack or mine from this target!
+                                            // Check ent parent type to know what to do
+                                            let new_order_type = if target_is_ore {
+                                                OrderType::Mine
+                                            } else {
+                                                OrderType::Attack
+                                            };
+                                            let new_order = Order::new(
+                                                new_order_type,
                                                 Vector2D::<f32>::new(
                                                     scaled_mouse_pos.x as f32,
                                                     scaled_mouse_pos.y as f32,
                                                 ),
                                                 EntTarget {
                                                     ent_id: Some(attack_target_id),
-                                                    ent_rect: world_info
-                                                        .get_ent_rect_by_id(attack_target_id),
-                                                    ent_owner: world_info
-                                                        .get_ent_owner_by_id(attack_target_id),
+                                                    ent_rect: click_target.ent_rect,
+                                                    ent_owner: click_target.ent_owner,
+                                                    ent_parent_type: click_target.ent_parent_type,
                                                 },
                                             );
-                                            ent.add_order(attack_order, !world.selection.queueing);
+                                            ent.add_order(new_order, !world.selection.queueing);
                                         }
                                     }
                                 }
+                                _ => {}
                             }
                         }
                     }
@@ -290,18 +294,21 @@ impl Input {
 
                 // Release left click command (if any)
                 world.selection.release_command();
-                // Check wether we clicked on something attackable
+                // Check wether we clicked on something attackable, or minable
                 for game_object in &world.game_objects {
                     match game_object {
-                        GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                        GameObject::Unit(ent, _)
+                        | GameObject::Structure(ent, _)
+                        | GameObject::Ore(ent, _) => {
                             if ent
                                 .get_rect()
                                 .has_intersection(camera.get_scaled_mouse_rect())
                             {
-                                attack_target = EntTarget {
+                                click_target = EntTarget {
                                     ent_id: Some(ent.id),
                                     ent_rect: Some(ent.get_rect()),
                                     ent_owner: Some(ent.owner),
+                                    ent_parent_type: Some(ent.parent_type()),
                                 };
                                 break;
                             }
@@ -316,38 +323,37 @@ impl Input {
                                 && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                             {
                                 if !found_target {
-                                    // No attack target found; Issue move order
+                                    // No right click target found; Issue move order
                                     let move_order = Order::new(
                                         OrderType::Move,
                                         Vector2D::<f32>::new(
                                             scaled_mouse_pos.x as f32,
                                             scaled_mouse_pos.y as f32,
                                         ),
-                                        EntTarget {
-                                            ent_id: None,
-                                            ent_rect: None,
-                                            ent_owner: None,
-                                        },
+                                        empty_ent_target(),
                                     );
                                     ent.add_order(move_order, !world.selection.queueing);
                                 } else {
-                                    // Attack target found; check if it is a valid one
+                                    // Right click arget found; check if it is a valid one
                                     // (defaults to self in case it's not there, canceling the attack (it should be there tho))
-                                    let attack_target_id = attack_target.ent_id.unwrap_or(ent.id);
+                                    let attack_target_id = click_target.ent_id.unwrap_or(ent.id);
                                     if attack_target_id == ent.id {
                                         // Cannot attack yourself!
                                         continue;
                                     }
-                                    // At this point, we know we will either attack or follow this target, depending on it's team
-                                    let new_order_type = if attack_target
-                                        .ent_owner
-                                        .expect(">> Could not get identity team from attack target")
-                                        == ent.owner
-                                    {
-                                        OrderType::Follow
-                                    } else {
-                                        OrderType::Attack
-                                    };
+                                    // At this point, we know we will either attack, follow or mine this target, depending on it's type and team
+                                    let new_order_type =
+                                        if click_target.ent_parent_type == Some(EntParentType::Ore)
+                                        {
+                                            OrderType::Mine
+                                        } else if click_target.ent_owner.expect(
+                                            ">> Could not get identity team from attack target",
+                                        ) == ent.owner
+                                        {
+                                            OrderType::Follow
+                                        } else {
+                                            OrderType::Attack
+                                        };
 
                                     let new_order = Order::new(
                                         new_order_type,
@@ -357,16 +363,16 @@ impl Input {
                                         ),
                                         EntTarget {
                                             ent_id: Option::Some(attack_target_id),
-                                            ent_rect: world_info
-                                                .get_ent_rect_by_id(attack_target_id),
-                                            ent_owner: world_info
-                                                .get_ent_owner_by_id(attack_target_id),
+                                            ent_rect: click_target.ent_rect,
+                                            ent_owner: click_target.ent_owner,
+                                            ent_parent_type: click_target.ent_parent_type,
                                         },
                                     );
                                     ent.add_order(new_order, !world.selection.queueing);
                                 }
                             }
                         }
+                        _ => (),
                     }
                 }
             }

@@ -4,12 +4,22 @@ use sdl2::{
 };
 use vector2d::Vector2D;
 
-use crate::consts::{helper::CURRENT_ENT_ID, values::RED_RGB};
+use crate::consts::{
+    helper::CURRENT_ENT_ID,
+    values::{BLUE_RGB, RED_RGB},
+};
 
 use super::order::Order;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum EntParentType {
+    Unit,
+    Ore,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Owner {
+    Nature,
     Player,
     Cpu,
 }
@@ -38,10 +48,17 @@ pub struct Ent {
     pub state: State,
     pub orders: Vec<Order>,
     selected: bool,
+    parent_type: EntParentType,
 }
 
 impl Ent {
-    pub fn new(owner: Owner, max_hp: u32, position: Vector2D<f32>, rect_size: Point) -> Self {
+    pub fn new(
+        parent_type: EntParentType,
+        owner: Owner,
+        max_hp: u32,
+        position: Vector2D<f32>,
+        rect_size: Point,
+    ) -> Self {
         unsafe {
             CURRENT_ENT_ID.0 += 1;
         }
@@ -54,6 +71,8 @@ impl Ent {
             hp: max_hp as f32,
             color: if owner == Owner::Player {
                 Color::RGB(0, 100, 100)
+            } else if parent_type == EntParentType::Ore {
+                BLUE_RGB
             } else {
                 RED_RGB
             },
@@ -61,6 +80,7 @@ impl Ent {
             state: State::Alert,
             orders: Vec::<Order>::new(),
             selected: false,
+            parent_type,
         }
     }
 
@@ -71,6 +91,10 @@ impl Ent {
             self.rect_size.x as u32,
             self.rect_size.y as u32,
         )
+    }
+
+    pub fn parent_type(&self) -> EntParentType {
+        self.parent_type
     }
 
     pub const fn selected(&self) -> bool {

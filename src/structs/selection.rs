@@ -45,7 +45,9 @@ impl Selection {
         if self.clearing {
             for game_object in game_objects {
                 match game_object {
-                    GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => ent.deselect(),
+                    GameObject::Unit(ent, _)
+                    | GameObject::Structure(ent, _)
+                    | GameObject::Ore(ent, _) => ent.deselect(),
                 }
             }
             self.clearing = false;
@@ -68,7 +70,9 @@ impl Selection {
             let mut ents_to_deselect: Vec<&mut Ent> = Vec::<&mut Ent>::new();
             for game_object in game_objects {
                 match game_object {
-                    GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                    GameObject::Unit(ent, _)
+                    | GameObject::Structure(ent, _)
+                    | GameObject::Ore(ent, _) => {
                         let possible_intersection = ent.get_rect().intersection(self.selection_box);
                         if possible_intersection.is_some() {
                             // Flag that this selection grabbed at least one ent
