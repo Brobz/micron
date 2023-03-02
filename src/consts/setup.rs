@@ -3,7 +3,7 @@ use sdl2::rect::Point;
 use vector2d::Vector2D;
 
 use crate::{
-    enums::game_object::GameObject,
+    enums::{game_object::GameObject, unit_type::UnitType},
     structs::{
         ent::{Ent, EntParentType, Owner},
         ore_patch::{OrePatch, OreType},
@@ -32,7 +32,7 @@ pub fn spawn_debug_ents(n: i32, world: &mut World, world_info: &mut WorldInfo) {
         world_info.add_ent(&new_ent);
         world
             .game_objects
-            .push(GameObject::Unit(new_ent, Unit::new()));
+            .push(GameObject::Unit(new_ent, UnitType::Scout(Unit::new())));
     }
 
     let new_ent = Ent::new(

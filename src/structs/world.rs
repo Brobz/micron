@@ -2,7 +2,7 @@ use sdl2::{rect::Rect, render::Canvas, video::Window};
 
 use crate::{
     consts::values::{MAP_HEIGHT, MAP_PADDING, MAP_WIDTH, SCREEN_BACKGROUND_COLOR},
-    enums::game_object::GameObject,
+    enums::{game_object::GameObject, unit_type::UnitType},
 };
 
 use super::{camera::Camera, ent::EntID, selection::Selection, world_info::WorldInfo};
@@ -30,9 +30,13 @@ impl World {
                 GameObject::Unit(ent, unit) => {
                     // Check if this unit's entity still exists in the world
                     if world_info.has_ent(ent) {
-                        // If so, tick and update world_info
-                        unit.tick(ent, world_info);
-                        world_info.update_ent(ent);
+                        match unit {
+                            UnitType::Scout(unit) | UnitType::Worker(unit) => {
+                                // If so, tick and update world_info
+                                unit.tick(ent, world_info);
+                                world_info.update_ent(ent);
+                            }
+                        }
                     } else {
                         // If not, add to cleanup list
                         ent_cleanup_list.push(ent.id);
@@ -125,9 +129,9 @@ impl World {
         // Draw unit orders
         for game_object in &mut self.game_objects {
             match game_object {
-                GameObject::Unit(ent, unit) => {
-                    unit.draw_orders(ent, canvas);
-                }
+                GameObject::Unit(ent, unit) => match unit {
+                    UnitType::Scout(unit) | UnitType::Worker(unit) => unit.draw_orders(ent, canvas),
+                },
                 GameObject::Structure(_ent, _structure) => todo!(),
                 GameObject::OrePatch(_ent, _ore) => (),
             }
@@ -136,9 +140,9 @@ impl World {
         // Draw game_objects
         for game_object in &mut self.game_objects {
             match game_object {
-                GameObject::Unit(ent, unit) => {
-                    unit.draw(ent, canvas);
-                }
+                GameObject::Unit(ent, unit) => match unit {
+                    UnitType::Scout(unit) | UnitType::Worker(unit) => unit.draw(ent, canvas),
+                },
                 GameObject::OrePatch(ent, ore_patch) => ore_patch.draw(ent, canvas),
                 GameObject::Structure(_ent, _structure) => todo!(),
             }
@@ -147,9 +151,11 @@ impl World {
         // Draw attack lines
         for game_object in &mut self.game_objects {
             match game_object {
-                GameObject::Unit(ent, unit) => {
-                    unit.draw_attack_lines(ent, canvas);
-                }
+                GameObject::Unit(ent, unit) => match unit {
+                    UnitType::Scout(unit) | UnitType::Worker(unit) => {
+                        unit.draw_attack_lines(ent, canvas)
+                    }
+                },
                 GameObject::Structure(_ent, _structure) => todo!(),
                 GameObject::OrePatch(_ent, _ore) => (),
             }

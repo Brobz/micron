@@ -6,7 +6,7 @@ use crate::{
         debug_flags::DEBUG_CAN_CONTROL_CPU,
         helper::{empty_ent_target, select_all_army},
     },
-    enums::game_object::GameObject,
+    enums::{game_object::GameObject, unit_type::UnitType},
 };
 
 use super::{
@@ -83,7 +83,11 @@ impl Input {
                                     && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                                 {
                                     // Issue stop order to owned selected units
-                                    unit.stop(ent);
+                                    match unit {
+                                        UnitType::Scout(unit) | UnitType::Worker(unit) => {
+                                            unit.stop(ent)
+                                        }
+                                    }
                                 }
                             }
                             _ => (),
