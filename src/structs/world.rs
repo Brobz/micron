@@ -1,11 +1,11 @@
 use sdl2::{rect::Rect, render::Canvas, video::Window};
 
-use crate::consts::values::{MAP_HEIGHT, MAP_PADDING, MAP_WIDTH, SCREEN_BACKGROUND_COLOR};
-
-use super::{
-    camera::Camera, ent::EntID, game_object::GameObject, selection::Selection,
-    world_info::WorldInfo,
+use crate::{
+    consts::values::{MAP_HEIGHT, MAP_PADDING, MAP_WIDTH, SCREEN_BACKGROUND_COLOR},
+    enums::game_object::GameObject,
 };
+
+use super::{camera::Camera, ent::EntID, selection::Selection, world_info::WorldInfo};
 
 pub struct World {
     pub game_objects: Vec<GameObject>,

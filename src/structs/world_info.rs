@@ -93,25 +93,15 @@ impl WorldInfo {
     }
 
     pub fn clear_ent_by_id(&mut self, ent_id: EntID) {
-        if self.ent_hp.contains_key(&ent_id) {
-            self.ent_hp.remove(&ent_id);
-        }
-        if self.ent_rect_center.contains_key(&ent_id) {
-            self.ent_rect_center.remove(&ent_id);
-        }
-        if self.ent_rect.contains_key(&ent_id) {
-            self.ent_rect.remove(&ent_id);
-        }
+        self.ent_hp.remove(&ent_id);
+        self.ent_rect_center.remove(&ent_id);
+        self.ent_rect.remove(&ent_id);
     }
 
     pub fn remove_ent_by_id(&mut self, ent_id: EntID) {
         self.clear_ent_by_id(ent_id);
-        if self.ent_max_hp.contains_key(&ent_id) {
-            self.ent_max_hp.remove(&ent_id);
-        }
-        if self.ent_team.contains_key(&ent_id) {
-            self.ent_team.remove(&ent_id);
-        }
+        self.ent_max_hp.remove(&ent_id);
+        self.ent_team.remove(&ent_id);
     }
 
     pub fn has_ent(&self, ent: &Ent) -> bool {

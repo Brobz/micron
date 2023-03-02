@@ -11,6 +11,7 @@ pub struct UIElement {
     pub label: String,   // Text label for the UI element
     pub color: Color,    // General (text) color of the UI element
     pub rect: Rect,      // Position and dimension of the UI element
+    pub visible: bool,   // Flag to turn rendering on or off for this particular UIElement
 }
 
 impl UIElement {
@@ -20,6 +21,7 @@ impl UIElement {
             label,
             rect,
             color,
+            visible: true,
         }
     }
 

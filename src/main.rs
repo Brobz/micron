@@ -31,13 +31,14 @@
 //  ??. Fix zoom out jankiness (would like it for the zoom behaviour to be reversed when zooming out...)
 
 mod consts;
+mod enums;
 mod structs;
 
 use consts::values::{BLACK_RGB, SCREEN_HEIGHT, SCREEN_WIDTH};
+use enums::ui_object::UIObject;
 use sdl2::rect::Rect;
 use structs::ui::UI;
 use structs::ui_element::{UIElement, UIElementID};
-use structs::ui_object::UIObject;
 use structs::{camera::Camera, text_label::TextLabel};
 
 use structs::input::Input;
@@ -84,13 +85,13 @@ fn main() -> Result<(), String> {
     ui.add_ui_object(&UIObject::TextLabel(
         UIElement::new(
             UIElementID::DEBUG_EntCount,
-            "TESTING".to_owned(),
+            "Ents: {live_ent_count}".to_owned(),
             BLACK_RGB,
             Rect::new(10, 10, 150, 75),
         ),
         TextLabel::new(),
     ));
-    spawn_debug_ents(500, &mut world, &mut world_info);
+    spawn_debug_ents(10, &mut world, &mut world_info);
 
     loop {
         //////////////////////// USER INPUT /////////////////////////

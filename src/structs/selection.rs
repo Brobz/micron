@@ -6,11 +6,10 @@ use sdl2::video::Window;
 
 use crate::consts::helper::find_selection_box_translation;
 use crate::consts::values::SELECTION_BOX_COLOR;
+use crate::enums::game_object::GameObject;
 
 use super::ent::Ent;
 use super::ent::Owner;
-
-use super::game_object::GameObject;
 
 pub enum MouseCommand {
     Select,

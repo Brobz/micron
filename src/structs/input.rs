@@ -1,12 +1,14 @@
 use sdl2::{event::Event, keyboard::Keycode, mouse::MouseButton, rect::Point, EventPump};
 use vector2d::Vector2D;
 
-use crate::consts::{debug_flags::DEBUG_CAN_CONTROL_CPU, helper::select_all_army};
+use crate::{
+    consts::{debug_flags::DEBUG_CAN_CONTROL_CPU, helper::select_all_army},
+    enums::game_object::GameObject,
+};
 
 use super::{
     camera::Camera,
     ent::Owner,
-    game_object::GameObject,
     order::{EntTarget, Order, OrderType},
     selection::MouseCommand,
     world::World,

@@ -10,9 +10,9 @@ use sdl2::video::Window;
 
 use crate::consts::helper::{draw_selection_border, draw_waypoint, get_direction_from_to};
 use crate::consts::values::{
-    ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_RANGE, BASE_UNIT_SPEED, BLACK_RGB,
-    FOLLOW_ORDER_HOVER_DISTANCE, GREY_RGB, MAX_MOVE_ORDER_ERROR, ORANGE_RGB, RED_RGBA_WEAK,
-    SELECTION_ATTACK_TARGET_BORDER_COLOR, SELECTION_BORDER_COLOR,
+    ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_MASS, BASE_UNIT_RANGE, BASE_UNIT_SPEED,
+    BLACK_RGB, FOLLOW_ORDER_HOVER_DISTANCE, GREY_RGB, MAX_MOVE_ORDER_ERROR, ORANGE_RGB,
+    RED_RGBA_WEAK, SELECTION_ATTACK_TARGET_BORDER_COLOR, SELECTION_BORDER_COLOR,
     SELECTION_FOLLOW_TARGET_BORDER_COLOR, TIME_STEP,
 };
 use crate::ent::Ent;
@@ -30,6 +30,8 @@ pub struct Unit {
     is_attacking: bool,
     attack_line_render_latch_point_delta: Option<Point>,
     velocity: Vector2D<f32>,
+    desired_velocity: Vector2D<f32>,
+    mass: f32,
 }
 
 impl Unit {
@@ -41,6 +43,8 @@ impl Unit {
             is_attacking: false,
             attack_line_render_latch_point_delta: None,
             velocity: Vector2D::<f32>::new(0.0, 0.0),
+            desired_velocity: Vector2D::<f32>::new(0.0, 0.0),
+            mass: BASE_UNIT_MASS,
         }
     }
 
@@ -53,6 +57,10 @@ impl Unit {
         if ent.hp <= 0.0 {
             return;
         }
+
+        // Apply steering
+        // Steering allows a unit to go from its current velocity to target velocity, if needed
+        self.apply_steering();
 
         // Apply velocity (if any)
         // Also handles collision detection
@@ -241,16 +249,12 @@ impl Unit {
         }
     }
 
-    pub fn set_velocity(&mut self, velocity: Vector2D<f32>) {
-        self.velocity = velocity;
-    }
-
     pub fn clear_velocity(&mut self) {
-        self.velocity = Vector2D::<f32>::new(0.0, 0.0);
+        self.desired_velocity = Vector2D::<f32>::new(0.0, 0.0);
     }
 
     // This method applies velocity each tick to the unit
-    fn apply_velocity(&mut self, ent: &mut Ent, world_info: &WorldInfo) {
+    fn apply_velocity(&mut self, ent: &mut Ent, world_info: &mut WorldInfo) {
         // Calculate speed penalty
         let attack_penalty: f32 = if self.is_attacking {
             ATTACKER_SPEED_PENALTY
@@ -270,14 +274,19 @@ impl Unit {
         );
     }
 
-    fn apply_x_velocity(&mut self, ent: &mut Ent, world_info: &WorldInfo, x_velocity: f32) {
+    fn apply_x_velocity(&mut self, ent: &mut Ent, world_info: &mut WorldInfo, x_velocity: f32) {
         // Aply velocity component
         ent.position.x += x_velocity;
         // Resolve collisions to the sides
-        for (ent_id, ent_rect) in &world_info.ent_rect {
+        for (ent_id, ent_rect) in world_info.ent_rect.iter_mut() {
             if *ent_id == ent.id {
                 continue;
             }
+            if !ent.get_rect().has_intersection(*ent_rect) {
+                continue;
+            }
+            // NO PUSH
+
             if ent.get_rect().has_intersection(*ent_rect) {
                 if self.velocity.x > 0.0 {
                     ent.position.x = (ent_rect.left() - ent.rect_size.x) as f32;
@@ -288,12 +297,15 @@ impl Unit {
         }
     }
 
-    fn apply_y_velocity(&mut self, ent: &mut Ent, world_info: &WorldInfo, y_velocity: f32) {
+    fn apply_y_velocity(&mut self, ent: &mut Ent, world_info: &mut WorldInfo, y_velocity: f32) {
         // Aply velocity component
         ent.position.y += y_velocity;
         // Resolve collisions to top/bottom
-        for (ent_id, ent_rect) in &world_info.ent_rect {
+        for (ent_id, ent_rect) in world_info.ent_rect.iter_mut() {
             if *ent_id == ent.id {
+                continue;
+            }
+            if !ent.get_rect().has_intersection(*ent_rect) {
                 continue;
             }
             if ent.get_rect().has_intersection(*ent_rect) {
@@ -554,7 +566,7 @@ impl Unit {
             OrderType::Move => {
                 ent.state = State::Busy;
                 self.stop_attacking();
-                self.set_velocity(next_order_direction_option.expect(
+                self.set_desired_velocity(next_order_direction_option.expect(
                     ">> Could not set unit velocity; current order did not produce a direction vector",
                 ));
             }
@@ -588,7 +600,7 @@ impl Unit {
                     // If lazy attack, complete order
                     if next_order.order_type == OrderType::Attack {
                         // If normal attack move towards it
-                        self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
+                        self.set_desired_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
                         // And mark as not attacking
                         self.stop_attacking()
                     } else {
@@ -600,7 +612,7 @@ impl Unit {
             OrderType::AttackMove => {
                 ent.state = State::Alert;
                 self.stop_attacking();
-                self.set_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
+                self.set_desired_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
             }
             OrderType::Follow => {
                 // Unit should stop moving if it gets within a certain distance of it's follow target
@@ -622,7 +634,7 @@ impl Unit {
                 if self.has_target_in_hover_distance(ent, next_order.current_move_target) {
                     self.clear_velocity();
                 } else {
-                    self.set_velocity(next_order_direction_option.expect(
+                    self.set_desired_velocity(next_order_direction_option.expect(
                         ">> Could not set unit velocity; current order did not produce a direction vector",
                     ));
                 }
@@ -655,5 +667,16 @@ impl Unit {
         }
         // Return true for a completed order
         true
+    }
+
+    fn set_desired_velocity(&mut self, target: Vector2D<f32>) {
+        self.desired_velocity = target;
+    }
+
+    fn apply_steering(&mut self) {
+        if self.velocity != self.desired_velocity {
+            let steering = self.desired_velocity - self.velocity;
+            self.velocity += steering / self.mass;
+        }
     }
 }

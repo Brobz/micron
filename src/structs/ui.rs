@@ -6,10 +6,9 @@ use sdl2::{
     video::{Window, WindowContext},
 };
 
-use super::{
-    camera::Camera, ui_element::UIElementID, ui_object::UIObject, world::World,
-    world_info::WorldInfo,
-};
+use crate::enums::ui_object::UIObject;
+
+use super::{camera::Camera, ui_element::UIElementID, world::World, world_info::WorldInfo};
 
 pub struct UI {
     texture_creator: TextureCreator<WindowContext>,

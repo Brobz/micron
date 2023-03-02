@@ -1,6 +1,5 @@
 pub mod camera;
 pub mod ent;
-pub mod game_object;
 pub mod input;
 pub mod order;
 pub mod selection;
@@ -8,7 +7,6 @@ pub mod structure;
 pub mod text_label;
 pub mod ui;
 pub mod ui_element;
-pub mod ui_object;
 pub mod unit;
 pub mod world;
 pub mod world_info;

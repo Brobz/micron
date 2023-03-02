@@ -23,7 +23,12 @@ impl TextLabel {
         camera: &Camera,
         ui_element: &UIElement,
     ) {
-        // render a surface, and convert it to a texture bound to the canvas
+        // If not visible, return early
+        if !ui_element.visible {
+            return;
+        }
+
+        // Render a surface, and convert it to a texture bound to the canvas
         let surface = font.render(&ui_element.label).blended(ui_element.color);
 
         match surface {

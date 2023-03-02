@@ -28,18 +28,15 @@ pub const HEALTH_BAR_Y_FLOAT: f32 = 35.0;
 pub const BASE_UNIT_SPEED: f32 = 150.0; // How fast it can move
 pub const BASE_UNIT_DAMAGE: f32 = 3.0; // How much damage it deals when attacking
 pub const BASE_UNIT_RANGE: f32 = 125.0; // How far away can it attack
+pub const BASE_UNIT_MASS: f32 = 10.0; // How heavy a unit is; Impacts steering
 pub const ATTACKER_SPEED_PENALTY: f32 = 0.35; // A scalar that gets applied to unit speed while it is attacking
 
 // Order constants
 pub const FOLLOW_ORDER_HOVER_DISTANCE: f32 = 100.0; // Scalar distance that representes how far away from its target a following unit will halt
 pub const MAX_MOVE_ORDER_ERROR: f32 = 3.0; // Maximum distance that a unit can be off from it's move target for it to be considered done with the move order
 
-// Defines how much of an ent's dimensions gets extended into its selection box render
-pub const SELECTION_BORDER_RATIO: f32 = 0.3;
-// Defines a minimum size for selection borders
-pub const MIN_SELECTION_BORDER_SIZE: f32 = 6.0;
-// Defines a maximum size for selection borders
-pub const MAX_SELECTION_BORDER_SIZE: f32 = 10.0;
+// Defines a size for selection borders
+pub const SELECTION_BORDER_SIZE: f32 = 8.0;
 
 // Defines the amount of time that should elapse between each physics step.
 pub const TIME_STEP: f32 = 1.0 / 60.0;

@@ -1,4 +1,4 @@
-use super::{text_label::TextLabel, ui_element::UIElement};
+use crate::structs::{text_label::TextLabel, ui_element::UIElement};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Button {}

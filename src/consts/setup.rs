@@ -2,12 +2,14 @@ use rand::Rng;
 use sdl2::rect::Point;
 use vector2d::Vector2D;
 
-use crate::structs::{
-    ent::{Ent, Owner},
-    game_object::GameObject,
-    unit::Unit,
-    world::World,
-    world_info::WorldInfo,
+use crate::{
+    enums::game_object::GameObject,
+    structs::{
+        ent::{Ent, Owner},
+        unit::Unit,
+        world::World,
+        world_info::WorldInfo,
+    },
 };
 
 use super::values::{MAP_HEIGHT, MAP_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH};

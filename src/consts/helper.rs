@@ -7,16 +7,15 @@ use sdl2::{
 use vector2d::Vector2D;
 
 use crate::{
-    consts::values::{MAX_SELECTION_BORDER_SIZE, MIN_SELECTION_BORDER_SIZE},
+    enums::game_object::GameObject,
     structs::{
         ent::{EntID, Owner},
-        game_object::GameObject,
         order::Order,
         world::World,
     },
 };
 
-use super::values::SELECTION_BORDER_RATIO;
+use super::values::SELECTION_BORDER_SIZE;
 
 // Counter to guarantee a unique EntID
 pub static mut CURRENT_ENT_ID: EntID = EntID(0);
@@ -62,18 +61,11 @@ pub fn draw_waypoint(order: Order, canvas: &mut Canvas<Window>) {
 pub fn draw_selection_border(canvas: &mut Canvas<Window>, ent_rect: &Rect, color: Color) {
     canvas.set_blend_mode(BlendMode::Blend);
     canvas.set_draw_color(color);
-    let selection_border_delta = if ent_rect.width() >= ent_rect.height() {
-        (ent_rect.width() as f32 * SELECTION_BORDER_RATIO)
-            .clamp(MIN_SELECTION_BORDER_SIZE, MAX_SELECTION_BORDER_SIZE)
-    } else {
-        (ent_rect.height() as f32 * SELECTION_BORDER_RATIO)
-            .clamp(MIN_SELECTION_BORDER_SIZE, MAX_SELECTION_BORDER_SIZE)
-    };
     let selection_border_rect: Rect = Rect::new(
-        (ent_rect.x as f32 - (selection_border_delta / 2.0)) as i32,
-        (ent_rect.y as f32 - (selection_border_delta / 2.0)) as i32,
-        ent_rect.width() + selection_border_delta as u32,
-        ent_rect.height() + selection_border_delta as u32,
+        (ent_rect.x as f32 - (SELECTION_BORDER_SIZE / 2.0)) as i32,
+        (ent_rect.y as f32 - (SELECTION_BORDER_SIZE / 2.0)) as i32,
+        ent_rect.width() + SELECTION_BORDER_SIZE as u32,
+        ent_rect.height() + SELECTION_BORDER_SIZE as u32,
     );
     canvas
         .fill_rect(selection_border_rect)
