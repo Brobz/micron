@@ -72,22 +72,20 @@ impl World {
                         }
 
                         // Grab the target EntID
-                        let ent_target_id = order
-                            .ent_target
-                            .ent_id
-                            .expect(">> Could not find attack target id for order");
+                        if let Some(ent_target_id) = order.ent_target.ent_id {
+                            // Update the order's target position to the attacked entity's position (if available)
+                            if let Some(target_position) =
+                                world_info.get_ent_rect_center_poisition_by_id(ent_target_id)
+                            {
+                                order.current_move_target = target_position;
+                            }
 
-                        // Update the order's target position to the attacked entity's position (if available)
-                        if let Some(target_position) =
-                            world_info.get_ent_rect_center_poisition_by_id(ent_target_id)
-                        {
-                            order.current_move_target = target_position;
+                            // Also update the attack target rect
+                            order.ent_target.ent_rect =
+                                world_info.get_ent_rect_by_id(ent_target_id);
+
+                            // Note: no need to update target's team! for now...
                         }
-
-                        // Also update the attack target rect
-                        order.ent_target.ent_rect = world_info.get_ent_rect_by_id(ent_target_id);
-
-                        // Note: no need to update target's team! for now...
                     }
                 }
                 _ => (),

@@ -67,16 +67,14 @@ impl WorldInfo {
             return;
         }
 
-        let new_hp = *self
-            .ent_hp
-            .get_mut(&ent_id)
-            .expect(">> Could not find entity hp in world_info")
-            - dmg;
-        if new_hp < 0.0 {
-            self.remove_ent_by_id(ent_id);
-        } else {
-            self.ent_hp.remove(&ent_id);
-            self.ent_hp.insert(ent_id, new_hp);
+        if let Some(hp) = self.ent_hp.get_mut(&ent_id) {
+            let new_hp = *hp - dmg;
+            if new_hp < 0.0 {
+                self.remove_ent_by_id(ent_id);
+            } else {
+                self.ent_hp.remove(&ent_id);
+                self.ent_hp.insert(ent_id, new_hp);
+            }
         }
     }
 
@@ -132,39 +130,34 @@ impl WorldInfo {
 
     pub fn draw_health_bars(&self, canvas: &mut Canvas<Window>) {
         for ent_id in self.ent_hp.keys() {
-            let health = self
-                .ent_hp
-                .get(ent_id)
-                .expect(">> Could not find entity hp in world info");
-            let max_health = self
-                .ent_max_hp
-                .get(ent_id)
-                .expect(">> Could not find entity max_hp in world info");
-            let pos = self
-                .ent_rect_center
-                .get(ent_id)
-                .expect(">> Could not find entity rect_center in world info");
-            let empty_health_bar_rec = Rect::from_center(
-                Point::new(pos.x as i32, (pos.y - HEALTH_BAR_Y_FLOAT) as i32),
-                HEALTH_BAR_WIDTH as u32,
-                HEALTH_BAR_HEIGHT as u32,
-            );
-            let full_health_bar_rec = Rect::from_center(
-                Point::new(
-                    (pos.x - ((1.0 - (health / (*max_health as f32))) * HEALTH_BAR_WIDTH / 2.0))
-                        as i32,
-                    (pos.y - HEALTH_BAR_Y_FLOAT) as i32,
-                ),
-                ((health / (*max_health as f32)) * HEALTH_BAR_WIDTH) as u32,
-                HEALTH_BAR_HEIGHT as u32,
-            );
+            if let Some(health) = self.ent_hp.get(ent_id) {
+                if let Some(max_health) = self.ent_max_hp.get(ent_id) {
+                    if let Some(pos) = self.ent_rect_center.get(ent_id) {
+                        let empty_health_bar_rec = Rect::from_center(
+                            Point::new(pos.x as i32, (pos.y - HEALTH_BAR_Y_FLOAT) as i32),
+                            HEALTH_BAR_WIDTH as u32,
+                            HEALTH_BAR_HEIGHT as u32,
+                        );
+                        let full_health_bar_rec = Rect::from_center(
+                            Point::new(
+                                (pos.x
+                                    - ((1.0 - (health / (*max_health as f32))) * HEALTH_BAR_WIDTH
+                                        / 2.0)) as i32,
+                                (pos.y - HEALTH_BAR_Y_FLOAT) as i32,
+                            ),
+                            ((health / (*max_health as f32)) * HEALTH_BAR_WIDTH) as u32,
+                            HEALTH_BAR_HEIGHT as u32,
+                        );
 
-            canvas.set_draw_color(RED_RGB);
-            canvas.fill_rect(empty_health_bar_rec).ok();
-            canvas.set_draw_color(GREEN_RGB);
-            canvas.fill_rect(full_health_bar_rec).ok();
-            canvas.set_draw_color(BLACK_RGB);
-            canvas.draw_rect(empty_health_bar_rec).ok();
+                        canvas.set_draw_color(RED_RGB);
+                        canvas.fill_rect(empty_health_bar_rec).ok();
+                        canvas.set_draw_color(GREEN_RGB);
+                        canvas.fill_rect(full_health_bar_rec).ok();
+                        canvas.set_draw_color(BLACK_RGB);
+                        canvas.draw_rect(empty_health_bar_rec).ok();
+                    }
+                }
+            }
         }
     }
 }

@@ -52,7 +52,7 @@ pub fn draw_waypoint(order: Order, canvas: &mut Canvas<Window>) {
         5,
         5,
     );
-    canvas.fill_rect(waypoint_rect).ok().unwrap_or_default();
+    canvas.fill_rect(waypoint_rect).ok();
 }
 
 // Renders selection border behind selected entities
@@ -67,10 +67,7 @@ pub fn draw_selection_border(canvas: &mut Canvas<Window>, ent_rect: &Rect, color
         ent_rect.width() + SELECTION_BORDER_SIZE as u32,
         ent_rect.height() + SELECTION_BORDER_SIZE as u32,
     );
-    canvas
-        .fill_rect(selection_border_rect)
-        .ok()
-        .unwrap_or_default();
+    canvas.fill_rect(selection_border_rect).ok();
     canvas.set_blend_mode(BlendMode::None);
 }
 

@@ -99,19 +99,19 @@ impl Unit {
         let (next_order_option, next_order_direction_option) = self.grab_next_order(ent);
 
         // Execute current order
-        let next_order =
-            next_order_option.expect(">> Could not grab next order from unit order vector");
-        // Keep a flag to mark completion
-        let did_complete_order =
-            self.execute_next_order(ent, next_order, next_order_direction_option, world_info);
+        if let Some(next_order) = next_order_option {
+            // Keep a flag to mark completion
+            let did_complete_order =
+                self.execute_next_order(ent, next_order, next_order_direction_option, world_info);
 
-        // Check if we can complete the order
-        if did_complete_order {
-            // Positive, mark as completed
-            ent.orders.index_mut(0).complete();
-        } else {
-            // Else, just mark order as executed
-            ent.orders.index_mut(0).execute();
+            // Check if we can complete the order
+            if did_complete_order {
+                // Positive, mark as completed
+                ent.orders.index_mut(0).complete();
+            } else {
+                // Else, just mark order as executed
+                ent.orders.index_mut(0).execute();
+            }
         }
     }
 
@@ -136,7 +136,7 @@ impl Unit {
             canvas.set_draw_color(BLACK_RGB);
         }
         let rect = ent.get_rect();
-        canvas.fill_rect(rect).ok().unwrap_or_default();
+        canvas.fill_rect(rect).ok();
         canvas.set_draw_color(BLACK_RGB);
         canvas.draw_rect(rect).ok();
         if ent.state == State::Stop {
@@ -179,8 +179,7 @@ impl Unit {
                             order.current_move_target.y as i32,
                         ),
                     )
-                    .ok()
-                    .unwrap_or_default();
+                    .ok();
             }
             // Else, draw line from last waypoint to this one
             else {
@@ -196,8 +195,7 @@ impl Unit {
                             order.current_move_target.y as i32,
                         ),
                     )
-                    .ok()
-                    .unwrap_or_default();
+                    .ok();
             }
             // Draw waypoint, if needed
             match order.order_type {
@@ -250,13 +248,16 @@ impl Unit {
             if let Some(attack_order) = possible_attack_order {
                 if let Some(attack_target_rect) = attack_order.ent_target.ent_rect {
                     canvas.set_draw_color(ent.color);
-                    canvas
-                        .draw_line(
-                            ent.get_rect().center(),
-                            attack_target_rect.center() + self.attack_line_render_latch_point_delta.expect(">> Could not get attack line render latch point, but is unit attacking?"),
-                        )
-                        .ok()
-                        .unwrap_or_default();
+                    if let Some(attack_line_render_latch_point_delta) =
+                        self.attack_line_render_latch_point_delta
+                    {
+                        canvas
+                            .draw_line(
+                                ent.get_rect().center(),
+                                attack_target_rect.center() + attack_line_render_latch_point_delta,
+                            )
+                            .ok();
+                    }
                 }
             }
         }
@@ -456,14 +457,15 @@ impl Unit {
         world_info: &WorldInfo,
         target_id: EntID,
     ) -> (bool, f32) {
-        let target_pos = world_info
-            .get_ent_rect_center_poisition_by_id(target_id)
-            .expect(">> Could not find attack target position from world info");
-        let self_rect_center = ent.get_rect().center();
-        let distance = (Vector2D::<f32>::new(self_rect_center.x as f32, self_rect_center.y as f32)
-            - target_pos)
-            .length();
-        (distance <= self.range, distance)
+        if let Some(target_pos) = world_info.get_ent_rect_center_poisition_by_id(target_id) {
+            let self_rect_center = ent.get_rect().center();
+            let distance =
+                (Vector2D::<f32>::new(self_rect_center.x as f32, self_rect_center.y as f32)
+                    - target_pos)
+                    .length();
+            return (distance <= self.range, distance);
+        }
+        (false, -1.0)
     }
 
     pub fn has_target_in_range_from_rect_center(
@@ -492,13 +494,11 @@ impl Unit {
                 // Cannot target self; return early
                 continue;
             }
-            if world_info
-                .get_ent_owner_by_id(*ent_id)
-                .expect(">> Could not find ent team by id")
-                == ent.owner
-            {
-                // Cannot targert an ent on the same team; return early
-                continue;
+            if let Some(ent_owner) = world_info.get_ent_owner_by_id(*ent_id) {
+                if ent_owner == ent.owner {
+                    // Cannot targert an ent on the same team; return early
+                    continue;
+                }
             }
 
             let (is_in_range, distance) =
@@ -516,11 +516,7 @@ impl Unit {
                 closest_ent_distance = distance;
                 closest_ent_in_range = EntTarget {
                     ent_id: Some(*ent_id),
-                    ent_rect: Some(
-                        world_info
-                            .get_ent_rect_by_id(*ent_id)
-                            .expect(">> Could not find entity rect by id"),
-                    ),
+                    ent_rect: world_info.get_ent_rect_by_id(*ent_id),
                     ent_owner: world_info.get_ent_owner_by_id(*ent_id),
                     ent_parent_type: world_info.get_ent_parent_type_by_id(*ent_id),
                 };
@@ -554,21 +550,20 @@ impl Unit {
                     // Indeed the case, return early;
                     return;
                 }
-                let ent_rect = closest_ent_in_range
-                    .ent_rect
-                    .expect(">> Could not find ent rect by id");
-                let attack_order = Order::new(
-                    if ent.state == State::Alert {
-                        OrderType::Attack
-                    } else {
-                        OrderType::LazyAttack
-                    },
-                    Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
-                    closest_ent_in_range,
-                );
-                // Issue attack order to closest in-range target
-                // Bump it so that it takes precedence over this attack move order
-                ent.bump_order(attack_order);
+                if let Some(ent_rect) = closest_ent_in_range.ent_rect {
+                    let attack_order = Order::new(
+                        if ent.state == State::Alert {
+                            OrderType::Attack
+                        } else {
+                            OrderType::LazyAttack
+                        },
+                        Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
+                        closest_ent_in_range,
+                    );
+                    // Issue attack order to closest in-range target
+                    // Bump it so that it takes precedence over this attack move order
+                    ent.bump_order(attack_order);
+                }
             }
         }
     }
@@ -584,9 +579,9 @@ impl Unit {
             OrderType::Move => {
                 ent.state = State::Busy;
                 self.stop_attacking();
-                self.set_desired_velocity(next_order_direction_option.expect(
-                    ">> Could not set unit velocity; current order did not produce a direction vector",
-                ));
+                if let Some(desired_velocity) = next_order_direction_option {
+                    self.set_desired_velocity(desired_velocity);
+                }
             }
             OrderType::Attack | OrderType::LazyAttack => {
                 let possible_attack_target = &next_order.ent_target;
@@ -594,43 +589,49 @@ impl Unit {
                     // No more target, attack is done!
                     return self.cancel_attack_order(ent, next_order);
                 }
-                let attack_target_id = possible_attack_target
-                    .ent_id
-                    .expect(">> Could not find attack target id from current order");
-                if !world_info.has_ent_by_id(attack_target_id) {
-                    // No more target, attack is done!
-                    return self.cancel_attack_order(ent, next_order);
-                }
-                if self
-                    .has_target_in_range_from_id(ent, world_info, attack_target_id)
-                    .0
-                {
-                    // If target is in range, check if already attacking
-                    if self.is_attacking {
-                        world_info.damage_ent(attack_target_id, self.damage * TIME_STEP);
-                    } else {
-                        // Else, start attacking
-                        self.start_attacking(ent, possible_attack_target.ent_rect.expect(">> Could not get ent rect from attack target, but could find rect center position in world info?"));
-                    }
-                } else {
-                    // If target is not in range, check order type
-                    // If regular attack, chase
-                    // If lazy attack, complete order
-                    if next_order.order_type == OrderType::Attack {
-                        // If normal attack move towards it
-                        self.set_desired_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
-                        // And mark as not attacking
-                        self.stop_attacking()
-                    } else {
+                if let Some(attack_target_id) = possible_attack_target.ent_id {
+                    if !world_info.has_ent_by_id(attack_target_id) {
+                        // No more target, attack is done!
                         return self.cancel_attack_order(ent, next_order);
                     }
+                    if self
+                        .has_target_in_range_from_id(ent, world_info, attack_target_id)
+                        .0
+                    {
+                        // If target is in range, check if already attacking
+                        if self.is_attacking {
+                            world_info.damage_ent(attack_target_id, self.damage * TIME_STEP);
+                        } else {
+                            // Else, start attacking
+                            if let Some(ent_rect) = possible_attack_target.ent_rect {
+                                self.start_attacking(ent, ent_rect);
+                            }
+                        }
+                    } else {
+                        // If target is not in range, check order type
+                        // If regular attack, chase
+                        // If lazy attack, complete order
+                        if next_order.order_type == OrderType::Attack {
+                            // If normal attack move towards it
+                            if let Some(desired_velocity) = next_order_direction_option {
+                                self.set_desired_velocity(desired_velocity);
+                            }
+                            // And mark as not attacking
+                            self.stop_attacking()
+                        } else {
+                            // Else, done! no chasing in lazy attack.
+                            return self.cancel_attack_order(ent, next_order);
+                        }
+                    }
+                    ent.state = State::Busy;
                 }
-                ent.state = State::Busy;
             }
             OrderType::AttackMove => {
                 ent.state = State::Alert;
                 self.stop_attacking();
-                self.set_desired_velocity(next_order_direction_option.expect(">> Could not set unit velocity; current order did not produce a direction vector"));
+                if let Some(desired_velocity) = next_order_direction_option {
+                    self.set_desired_velocity(desired_velocity)
+                }
             }
             OrderType::Follow => {
                 // Unit should stop moving if it gets within a certain distance of it's follow target
@@ -640,24 +641,21 @@ impl Unit {
                     // Return true for a completed order
                     return true;
                 }
-                let follow_target_id = next_order
-                    .ent_target
-                    .ent_id
-                    .expect(">> Could not get entity id form follow target");
-                if !world_info.has_ent_by_id(follow_target_id) {
-                    // Target is dead!
-                    // Return true for a completed order
-                    return true;
+                if let Some(follow_target_id) = next_order.ent_target.ent_id {
+                    if !world_info.has_ent_by_id(follow_target_id) {
+                        // Target is dead!
+                        // Return true for a completed order
+                        return true;
+                    }
+                    if self.has_target_in_hover_distance(ent, next_order.current_move_target) {
+                        self.clear_velocity();
+                    } else if let Some(desired_velocity) = next_order_direction_option {
+                        self.set_desired_velocity(desired_velocity);
+                    }
+
+                    self.stop_attacking();
+                    ent.state = State::Busy;
                 }
-                if self.has_target_in_hover_distance(ent, next_order.current_move_target) {
-                    self.clear_velocity();
-                } else {
-                    self.set_desired_velocity(next_order_direction_option.expect(
-                        ">> Could not set unit velocity; current order did not produce a direction vector",
-                    ));
-                }
-                self.stop_attacking();
-                ent.state = State::Busy;
             }
             OrderType::HoldPosition => {
                 self.hold_position(ent);
@@ -677,27 +675,23 @@ impl Unit {
                     // Return true for a completed order
                     return true;
                 }
-                let mine_target_id = next_order
-                    .ent_target
-                    .ent_id
-                    .expect(">> Could not get entity id form follow target");
-                if !world_info.has_ent_by_id(mine_target_id) {
-                    // Target is dead!
-                    // Return true for a completed order
-                    return true;
+                if let Some(mine_target_id) = next_order.ent_target.ent_id {
+                    if !world_info.has_ent_by_id(mine_target_id) {
+                        // Target is dead!
+                        // Return true for a completed order
+                        return true;
+                    }
+                    if self
+                        .has_target_in_range_from_rect_center(ent, next_order.current_move_target)
+                        .0
+                    {
+                        self.clear_velocity();
+                    } else if let Some(desired_velocity) = next_order_direction_option {
+                        self.set_desired_velocity(desired_velocity);
+                    }
+                    self.stop_attacking();
+                    ent.state = State::Busy;
                 }
-                if self
-                    .has_target_in_range_from_rect_center(ent, next_order.current_move_target)
-                    .0
-                {
-                    self.clear_velocity();
-                } else {
-                    self.set_desired_velocity(next_order_direction_option.expect(
-                        ">> Could not set unit velocity; current order did not produce a direction vector",
-                    ));
-                }
-                self.stop_attacking();
-                ent.state = State::Busy;
             }
         }
         false

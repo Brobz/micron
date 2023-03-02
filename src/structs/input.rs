@@ -105,15 +105,10 @@ impl Input {
                                     // To know what to render
                                     let mut hold_position_spot: Option<Vector2D<f32>> = None;
                                     if world.selection.queueing {
-                                        if ent.orders.is_empty() {
-                                            hold_position_spot = Some(ent.position);
+                                        if let Some(order) = ent.orders.last() {
+                                            hold_position_spot = Some(order.current_move_target);
                                         } else {
-                                            hold_position_spot = Some(ent.orders
-                                        .last()
-                                        .expect(
-                                            ">> Could not get order even though list is not empty?",
-                                        )
-                                        .current_move_target)
+                                            hold_position_spot = Some(ent.position);
                                         }
                                     }
                                     // Issue hold position order to owned selected units
@@ -248,13 +243,14 @@ impl Input {
                                                 // Cannot attack yourself!
                                                 continue;
                                             }
-                                            if click_target.ent_owner.expect(
-                                                ">> Could not get entity team from attack target",
-                                            ) == ent.owner
-                                            {
-                                                // Cannot attack an ent on the same team!
-                                                continue;
+
+                                            if let Some(ent_owner) = click_target.ent_owner {
+                                                if ent_owner == ent.owner {
+                                                    // Cannot attack an ent on the same team!
+                                                    continue;
+                                                }
                                             }
+
                                             // Now we know we will either attack or mine from this target!
                                             // Check ent parent type to know what to do
                                             let new_order_type = if target_is_ore_patch {
@@ -346,11 +342,7 @@ impl Input {
                                         == Some(EntParentType::OrePatch)
                                     {
                                         OrderType::Mine
-                                    } else if click_target
-                                        .ent_owner
-                                        .expect(">> Could not get identity team from attack target")
-                                        == ent.owner
-                                    {
+                                    } else if click_target.ent_owner == Some(ent.owner) {
                                         OrderType::Follow
                                     } else {
                                         OrderType::Attack

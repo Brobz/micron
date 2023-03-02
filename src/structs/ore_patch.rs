@@ -50,7 +50,7 @@ impl OrePatch {
         // Draw self (if alive)
         canvas.set_draw_color(ent.color);
         let rect = ent.get_rect();
-        canvas.fill_rect(rect).ok().unwrap_or_default();
+        canvas.fill_rect(rect).ok();
         canvas.set_draw_color(BLACK_RGB);
         canvas.draw_rect(rect).ok();
     }
