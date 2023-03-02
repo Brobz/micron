@@ -6,7 +6,7 @@ use crate::{
     enums::game_object::GameObject,
     structs::{
         ent::{Ent, EntParentType, Owner},
-        ore::{Ore, OreType},
+        ore_patch::{OrePatch, OreType},
         unit::Unit,
         world::World,
         world_info::WorldInfo,
@@ -46,7 +46,8 @@ pub fn spawn_debug_ents(n: i32, world: &mut World, world_info: &mut WorldInfo) {
         Point::new(rng.gen_range(5..50), rng.gen_range(5..50)),
     );
     world_info.add_ent(&new_ent);
-    world
-        .game_objects
-        .push(GameObject::Ore(new_ent, Ore::new(OreType::Blue, 10, 5)));
+    world.game_objects.push(GameObject::Ore(
+        new_ent,
+        OrePatch::new(OreType::Blue, 10, 5),
+    ));
 }

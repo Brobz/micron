@@ -10,13 +10,13 @@ use super::{ent::Ent, world_info::WorldInfo};
 pub enum OreType {
     Blue,
 }
-pub struct Ore {
+pub struct OrePatch {
     ore_type: OreType,
     density: i32,
     richness: i32,
 }
 
-impl Ore {
+impl OrePatch {
     pub fn new(ore_type: OreType, density: i32, richness: i32) -> Self {
         Self {
             ore_type,
