@@ -4,10 +4,7 @@ use sdl2::{
 };
 use vector2d::Vector2D;
 
-use crate::consts::{
-    helper::CURRENT_ENT_ID,
-    values::{BLUE_RGB, RED_RGB},
-};
+use crate::consts::helper::CURRENT_ENT_ID;
 
 use super::order::Order;
 
@@ -15,6 +12,8 @@ use super::order::Order;
 pub enum EntParentType {
     Unit,
     OrePatch,
+    Ore,
+    Structure,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -40,7 +39,6 @@ pub struct Ent {
     pub id: EntID,
     pub position: Vector2D<f32>,
     pub rect_size: Point,
-    pub radius: i32,
     pub max_hp: u32,
     pub hp: f32,
     pub color: Color,
@@ -58,6 +56,7 @@ impl Ent {
         max_hp: u32,
         position: Vector2D<f32>,
         rect_size: Point,
+        color: Color,
     ) -> Self {
         unsafe {
             CURRENT_ENT_ID.0 += 1;
@@ -66,16 +65,9 @@ impl Ent {
             id: unsafe { CURRENT_ENT_ID },
             position,
             rect_size,
-            radius: -1,
             max_hp,
             hp: max_hp as f32,
-            color: if owner == Owner::Player {
-                Color::RGB(0, 100, 100)
-            } else if parent_type == EntParentType::OrePatch {
-                BLUE_RGB
-            } else {
-                RED_RGB
-            },
+            color,
             owner,
             state: State::Alert,
             orders: Vec::<Order>::new(),

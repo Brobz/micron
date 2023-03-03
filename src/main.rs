@@ -36,6 +36,7 @@ mod structs;
 
 use consts::values::{BLACK_RGB, SCREEN_HEIGHT, SCREEN_WIDTH};
 use enums::ui_object::UIObject;
+
 use sdl2::rect::Rect;
 use structs::ui::UI;
 use structs::ui_element::{UIElement, UIElementID};

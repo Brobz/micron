@@ -9,13 +9,15 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use crate::consts::helper::{
-    draw_selection_border, draw_waypoint, empty_ent_target, get_direction_from_to,
+    draw_circle_selection_border, draw_rect_selection_border, draw_waypoint, empty_ent_target,
+    get_direction_from_to,
 };
 use crate::consts::values::{
     ATTACKER_SPEED_PENALTY, BASE_UNIT_DAMAGE, BASE_UNIT_MASS, BASE_UNIT_RANGE, BASE_UNIT_SPEED,
     BLACK_RGB, FOLLOW_ORDER_HOVER_DISTANCE, GREY_RGB, MAX_MOVE_ORDER_ERROR, ORANGE_RGB,
     RED_RGBA_WEAK, SELECTION_ATTACK_TARGET_BORDER_COLOR, SELECTION_BORDER_COLOR,
-    SELECTION_FOLLOW_TARGET_BORDER_COLOR, SELECTION_MINE_TARGET_BORDER_COLOR, TIME_STEP,
+    SELECTION_COLLECT_TARGET_BORDER_COLOR, SELECTION_FOLLOW_TARGET_BORDER_COLOR,
+    SELECTION_MINE_TARGET_BORDER_COLOR, TIME_STEP,
 };
 use crate::ent::Ent;
 
@@ -25,28 +27,45 @@ use super::ent::{EntID, EntParentType, Owner, State};
 use super::order::EntTarget;
 use super::world_info::WorldInfo;
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum UnitParentType {
+    Miner,
+    Scout,
+    Collector,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Action {
+    None,
+    Attacking,
+    Mining,
+    Collecting,
+}
+
 pub struct Unit {
     pub speed: f32,
     pub damage: f32,
     pub range: f32,
-    is_attacking: bool,
-    attack_line_render_latch_point_delta: Option<Point>,
+    current_action: Action,
+    interaction_line_render_latch_point_delta: Option<Point>,
     velocity: Vector2D<f32>,
     desired_velocity: Vector2D<f32>,
     mass: f32,
+    parent_type: UnitParentType,
 }
 
 impl Unit {
-    pub fn new() -> Self {
+    pub fn new(parent_type: UnitParentType) -> Self {
         Self {
             speed: BASE_UNIT_SPEED,
             damage: BASE_UNIT_DAMAGE,
             range: BASE_UNIT_RANGE,
-            is_attacking: false,
-            attack_line_render_latch_point_delta: None,
+            current_action: Action::None,
+            interaction_line_render_latch_point_delta: None,
             velocity: Vector2D::<f32>::new(0.0, 0.0),
             desired_velocity: Vector2D::<f32>::new(0.0, 0.0),
             mass: BASE_UNIT_MASS,
+            parent_type,
         }
     }
 
@@ -127,7 +146,7 @@ impl Unit {
             } else {
                 RED_RGBA_WEAK
             };
-            draw_selection_border(canvas, &ent.get_rect(), border_color);
+            draw_rect_selection_border(canvas, &ent.get_rect(), border_color);
         }
 
         // Draw self (if alive)
@@ -162,12 +181,24 @@ impl Unit {
             // Set colors according to order type
             match order.order_type {
                 OrderType::Move => canvas.set_draw_color(Color::RGB(0, 150, 0)),
-                OrderType::Attack | OrderType::AttackMove | OrderType::LazyAttack => {
+                OrderType::Attack | OrderType::LazyAttack => {
                     canvas.set_draw_color(SELECTION_ATTACK_TARGET_BORDER_COLOR)
                 }
                 OrderType::Follow => canvas.set_draw_color(SELECTION_FOLLOW_TARGET_BORDER_COLOR),
                 OrderType::HoldPosition => canvas.set_draw_color(ORANGE_RGB),
                 OrderType::Mine => canvas.set_draw_color(SELECTION_MINE_TARGET_BORDER_COLOR),
+                OrderType::Collect => canvas.set_draw_color(SELECTION_COLLECT_TARGET_BORDER_COLOR),
+                OrderType::ActionMove => match self.parent_type {
+                    UnitParentType::Miner => {
+                        canvas.set_draw_color(SELECTION_MINE_TARGET_BORDER_COLOR)
+                    }
+                    UnitParentType::Scout => {
+                        canvas.set_draw_color(SELECTION_ATTACK_TARGET_BORDER_COLOR)
+                    }
+                    UnitParentType::Collector => {
+                        canvas.set_draw_color(SELECTION_COLLECT_TARGET_BORDER_COLOR)
+                    }
+                },
             }
             if i == 0 {
                 // If this is the next order, draw  a line from unit to waypoint
@@ -203,7 +234,7 @@ impl Unit {
                 // (if target is still alive)
                 OrderType::Attack | OrderType::LazyAttack => {
                     if let Some(attack_target_rect) = &order.ent_target.ent_rect {
-                        draw_selection_border(
+                        draw_rect_selection_border(
                             canvas,
                             attack_target_rect,
                             SELECTION_ATTACK_TARGET_BORDER_COLOR,
@@ -211,14 +242,14 @@ impl Unit {
                     }
                 }
                 // In case of move or attack move order, draw waypoint
-                OrderType::Move | OrderType::AttackMove => {
+                OrderType::Move | OrderType::ActionMove => {
                     draw_waypoint(*order, canvas);
                 }
                 // In case of follow order, draw yellow selection border on followed ent
                 // (if target is still alive)
                 OrderType::Follow => {
                     if let Some(follow_target_rect) = &order.ent_target.ent_rect {
-                        draw_selection_border(
+                        draw_rect_selection_border(
                             canvas,
                             follow_target_rect,
                             SELECTION_FOLLOW_TARGET_BORDER_COLOR,
@@ -230,10 +261,23 @@ impl Unit {
                 // In case of mining, draw white selection border on mine target
                 OrderType::Mine => {
                     if let Some(mine_target_rect) = &order.ent_target.ent_rect {
-                        draw_selection_border(
+                        draw_rect_selection_border(
                             canvas,
                             mine_target_rect,
                             SELECTION_MINE_TARGET_BORDER_COLOR,
+                        )
+                    }
+                }
+                OrderType::Collect => {
+                    if let Some(collect_target_rect) = &order.ent_target.ent_rect {
+                        draw_circle_selection_border(
+                            canvas,
+                            Vector2D::<f32>::new(
+                                collect_target_rect.center().x as f32,
+                                collect_target_rect.center().y as f32,
+                            ),
+                            collect_target_rect.width() as i16, // TODO: Get ent_target.radius up and going
+                            SELECTION_COLLECT_TARGET_BORDER_COLOR,
                         )
                     }
                 }
@@ -243,18 +287,19 @@ impl Unit {
 
     pub fn draw_attack_lines(&self, ent: &mut Ent, canvas: &mut Canvas<Window>) {
         // Draw attack lines (if attacking)
-        if self.is_attacking {
+        if self.current_action == Action::Attacking {
             let possible_attack_order = ent.orders.get(0);
             if let Some(attack_order) = possible_attack_order {
                 if let Some(attack_target_rect) = attack_order.ent_target.ent_rect {
                     canvas.set_draw_color(ent.color);
-                    if let Some(attack_line_render_latch_point_delta) =
-                        self.attack_line_render_latch_point_delta
+                    if let Some(interaction_line_render_latch_point_delta) =
+                        self.interaction_line_render_latch_point_delta
                     {
                         canvas
                             .draw_line(
                                 ent.get_rect().center(),
-                                attack_target_rect.center() + attack_line_render_latch_point_delta,
+                                attack_target_rect.center()
+                                    + interaction_line_render_latch_point_delta,
                             )
                             .ok();
                     }
@@ -270,7 +315,7 @@ impl Unit {
     // This method applies velocity each tick to the unit
     fn apply_velocity(&mut self, ent: &mut Ent, world_info: &mut WorldInfo) {
         // Calculate speed penalty
-        let attack_penalty: f32 = if self.is_attacking {
+        let attack_penalty: f32 = if self.current_action == Action::Attacking {
             ATTACKER_SPEED_PENALTY
         } else {
             1.0
@@ -357,7 +402,7 @@ impl Unit {
 
             if !next_order.completed && next_order.executed {
                 match next_order.order_type {
-                    OrderType::Move | OrderType::AttackMove => {
+                    OrderType::Move | OrderType::ActionMove => {
                         // To complete either a move or attack move order, unit must reach it's destination
                         if self.has_arrived_at(ent, next_order.current_move_target) {
                             // Mark this order as completed
@@ -367,6 +412,11 @@ impl Unit {
                             // Clear it's velocity so it can rest
                             self.clear_velocity();
                         }
+                    }
+
+                    // A collect order can be done if the unit's storage is full
+                    OrderType::Collect => {
+                        // TODO: check storage and complete order when necessary
                     }
                     // A follow order can never be completed!
                     // It can only get cleard or canceled (if the followed unit dies)
@@ -406,7 +456,7 @@ impl Unit {
         // Cancel all orders
         ent.clear_orders();
         // Set state to stopped
-        self.stop_attacking();
+        self.stop_interacting();
         ent.state = State::Stop;
         self.clear_velocity();
     }
@@ -423,17 +473,31 @@ impl Unit {
         ent.state = State::Hold;
     }
 
-    pub fn stop_attacking(&mut self) {
-        self.is_attacking = false;
-        self.attack_line_render_latch_point_delta = None;
+    pub fn start_attacking(&mut self, ent: &mut Ent, attack_target_rect: Rect) {
+        self.current_action = Action::Attacking;
+        self.start_interacting(ent, attack_target_rect);
     }
 
-    pub fn start_attacking(&mut self, ent: &mut Ent, attack_target_rect: Rect) {
+    pub fn start_mining(&mut self, ent: &mut Ent, attack_target_rect: Rect) {
+        self.current_action = Action::Mining;
+        self.start_interacting(ent, attack_target_rect);
+    }
+
+    pub fn start_collecting(&mut self, ent: &mut Ent, attack_target_rect: Rect) {
+        self.current_action = Action::Collecting;
+        self.start_interacting(ent, attack_target_rect);
+    }
+
+    pub fn stop_interacting(&mut self) {
+        self.current_action = Action::None;
+        self.interaction_line_render_latch_point_delta = None;
+    }
+
+    pub fn start_interacting(&mut self, ent: &mut Ent, attack_target_rect: Rect) {
         self.clear_velocity();
         ent.state = State::Busy;
         let mut rng = rand::thread_rng();
-        self.is_attacking = true;
-        self.attack_line_render_latch_point_delta = Some(Point::new(
+        self.interaction_line_render_latch_point_delta = Some(Point::new(
             rng.gen_range(
                 (-(attack_target_rect.width() as f32 + 2.0) / 2.0) as i32
                     ..((attack_target_rect.width() as f32 - 2.0) / 2.0) as i32,
@@ -501,6 +565,37 @@ impl Unit {
                 }
             }
 
+            // Check if target_ent_type is a valid target type for this ent
+            match world_info.get_ent_parent_type_by_id(*ent_id) {
+                Some(ent_parent_type) => match self.parent_type {
+                    UnitParentType::Miner => {
+                        // Check if target is an ore patch
+                        if !(ent_parent_type == EntParentType::OrePatch) {
+                            // If not, continue
+                            continue;
+                        }
+                    }
+                    UnitParentType::Scout => {
+                        // Check if target is unit or structure
+                        if !(vec![EntParentType::Unit, EntParentType::Structure]
+                            .contains(&ent_parent_type))
+                        {
+                            // If not, continue
+                            continue;
+                        }
+                    }
+                    UnitParentType::Collector => {
+                        // Check if target is an ore
+                        if !(ent_parent_type == EntParentType::Ore) {
+                            // If not, continue
+                            continue;
+                        }
+                    }
+                },
+                // No target parent type found, continue
+                None => continue,
+            }
+
             let (is_in_range, distance) =
                 self.has_target_in_range_from_rect_center(ent, *ent_rect_center);
 
@@ -538,31 +633,54 @@ impl Unit {
     fn check_surroundings(&mut self, ent: &mut Ent, world_info: &mut WorldInfo) {
         // Checks for Alert & Hold state
         // An alert unit has no pending orders in its queue
-        // It should actively seek to attack enemy units that appear in its range
+        // It should actively seek to interact with other ents that appear in its range
         // Hold units behave similarly, but issue lazy attacks instead (won't chase)
         if vec![State::Alert, State::Hold].contains(&ent.state) {
             let (has_target_in_range, closest_ent_in_range, _) =
                 self.get_closest_target_in_range(ent, world_info);
             if has_target_in_range {
-                // Check if the target is an ore
-                // In wich case attack move should NOT consider it (its attack move, not mine move... for now)
-                if closest_ent_in_range.ent_parent_type == Some(EntParentType::OrePatch) {
-                    // Indeed the case, return early;
-                    return;
-                }
-                if let Some(ent_rect) = closest_ent_in_range.ent_rect {
-                    let attack_order = Order::new(
-                        if ent.state == State::Alert {
-                            OrderType::Attack
-                        } else {
-                            OrderType::LazyAttack
-                        },
-                        Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
-                        closest_ent_in_range,
-                    );
-                    // Issue attack order to closest in-range target
-                    // Bump it so that it takes precedence over this attack move order
-                    ent.bump_order(attack_order);
+                // Here we check what order to give depending on unit type
+                match self.parent_type {
+                    UnitParentType::Miner => {
+                        if let Some(ent_rect) = closest_ent_in_range.ent_rect {
+                            let mine_order = Order::new(
+                                OrderType::Mine,
+                                Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
+                                closest_ent_in_range,
+                            );
+                            // Issue mine order to closest in-range target
+                            // Bump it so that it takes precedence over this attack move order
+                            ent.bump_order(mine_order);
+                        }
+                    }
+                    UnitParentType::Scout => {
+                        if let Some(ent_rect) = closest_ent_in_range.ent_rect {
+                            let attack_order = Order::new(
+                                if ent.state == State::Alert {
+                                    OrderType::Attack
+                                } else {
+                                    OrderType::LazyAttack
+                                },
+                                Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
+                                closest_ent_in_range,
+                            );
+                            // Issue attack order to closest in-range target
+                            // Bump it so that it takes precedence over this attack move order
+                            ent.bump_order(attack_order);
+                        }
+                    }
+                    UnitParentType::Collector => {
+                        if let Some(ent_rect) = closest_ent_in_range.ent_rect {
+                            let collect_order = Order::new(
+                                OrderType::Collect,
+                                Vector2D::<f32>::new(ent_rect.x as f32, ent_rect.y as f32),
+                                closest_ent_in_range,
+                            );
+                            // Issue collect order to closest in-range target
+                            // Bump it so that it takes precedence over this attack move order
+                            ent.bump_order(collect_order);
+                        }
+                    }
                 }
             }
         }
@@ -578,7 +696,7 @@ impl Unit {
         match next_order.order_type {
             OrderType::Move => {
                 ent.state = State::Busy;
-                self.stop_attacking();
+                self.stop_interacting();
                 if let Some(desired_velocity) = next_order_direction_option {
                     self.set_desired_velocity(desired_velocity);
                 }
@@ -599,7 +717,7 @@ impl Unit {
                         .0
                     {
                         // If target is in range, check if already attacking
-                        if self.is_attacking {
+                        if self.current_action == Action::Attacking {
                             world_info.damage_ent(attack_target_id, self.damage * TIME_STEP);
                         } else {
                             // Else, start attacking
@@ -617,7 +735,7 @@ impl Unit {
                                 self.set_desired_velocity(desired_velocity);
                             }
                             // And mark as not attacking
-                            self.stop_attacking()
+                            self.stop_interacting()
                         } else {
                             // Else, done! no chasing in lazy attack.
                             return self.cancel_attack_order(ent, next_order);
@@ -626,9 +744,9 @@ impl Unit {
                     ent.state = State::Busy;
                 }
             }
-            OrderType::AttackMove => {
+            OrderType::ActionMove => {
                 ent.state = State::Alert;
-                self.stop_attacking();
+                self.stop_interacting();
                 if let Some(desired_velocity) = next_order_direction_option {
                     self.set_desired_velocity(desired_velocity)
                 }
@@ -653,7 +771,7 @@ impl Unit {
                         self.set_desired_velocity(desired_velocity);
                     }
 
-                    self.stop_attacking();
+                    self.stop_interacting();
                     ent.state = State::Busy;
                 }
             }
@@ -662,12 +780,6 @@ impl Unit {
                 return true;
             }
             OrderType::Mine => {
-                // TODO: Add actual mining, for now it will just follow the ore
-                //      => 1. Damage the ore with a special unit type dependant penalty to the unit dmg (miner will have no penalty, but low dmg)
-                //      => 2. After a certain amount of dmg, dependant on ore patch density, some ore will be dropped
-                //      => 3. Unit mining stores this ore on itself (maybe up to a certain carry_capacity, and with some increase to its mass  so its more clumsy (?)
-                //                                                  or just a speed debuff for carrying (maybe no attacking att full cap, must drop to attack?))
-                //      => 4. Unit must beam ore back into mainframe for collection and later use
                 // Unit should stop moving if it gets within a certain distance of it's mine target
                 // If target is no longer, complete order
                 if next_order.ent_target.ent_id.is_none() {
@@ -685,11 +797,66 @@ impl Unit {
                         .has_target_in_range_from_rect_center(ent, next_order.current_move_target)
                         .0
                     {
-                        self.clear_velocity();
+                        // If target is in range, check if already mining
+                        if self.current_action == Action::Mining {
+                            world_info.damage_ent(mine_target_id, self.damage * TIME_STEP);
+                        } else {
+                            // Else, start mining
+                            if let Some(ent_rect) = next_order.ent_target.ent_rect {
+                                self.start_mining(ent, ent_rect);
+                            }
+                        }
                     } else if let Some(desired_velocity) = next_order_direction_option {
+                        if self.current_action != Action::None {
+                            self.stop_interacting();
+                        };
                         self.set_desired_velocity(desired_velocity);
                     }
-                    self.stop_attacking();
+                    ent.state = State::Busy;
+                }
+            }
+
+            OrderType::Collect => {
+                //  TODO:
+                //  TODO: GRAB RESOURCE FROM ORE AND STORE IN UNIT CARGO
+                //          => CHECK FOR FULLNESS, ETC.
+                //      THEN ADD DEPOSIT ORDER
+                //      => 3. Unit mining stores this ore on itself (maybe up to a certain carry_capacity, and with some increase to its mass  so its more clumsy (?)
+                //                                                  or just a speed debuff for carrying (maybe no attacking att full cap, must drop to attack?))
+                //      => 4. Unit must beam ore back into mainframe for collection and later use
+
+                // Unit should stop moving if it gets within a certain distance of it's collect target
+                // If target is no longer, complete order
+                if next_order.ent_target.ent_id.is_none() {
+                    // No target, order completed!
+                    // Return true for a completed order
+                    return true;
+                }
+                if let Some(collect_target_id) = next_order.ent_target.ent_id {
+                    if !world_info.has_ent_by_id(collect_target_id) {
+                        // Target is dead!
+                        // Return true for a completed order
+                        return true;
+                    }
+                    if self
+                        .has_target_in_range_from_rect_center(ent, next_order.current_move_target)
+                        .0
+                    {
+                        // If target is in range, check if already collecting
+                        if self.current_action == Action::Collecting {
+                            world_info.damage_ent(collect_target_id, self.damage * TIME_STEP);
+                        } else {
+                            // Else, start collecting
+                            if let Some(ent_rect) = next_order.ent_target.ent_rect {
+                                self.start_collecting(ent, ent_rect);
+                            }
+                        }
+                    } else if let Some(desired_velocity) = next_order_direction_option {
+                        if self.current_action != Action::None {
+                            self.stop_interacting();
+                        }
+                        self.set_desired_velocity(desired_velocity);
+                    }
                     ent.state = State::Busy;
                 }
             }
@@ -705,7 +872,7 @@ impl Unit {
             return false;
         }
         // Mark self as not attacking
-        self.stop_attacking();
+        self.stop_interacting();
         // If regular attack: Clear velocity; Attack order could have a unit moving
         // If lazy attack: set state to hold
         match next_order.order_type {
@@ -726,5 +893,9 @@ impl Unit {
             let steering = self.desired_velocity - self.velocity;
             self.velocity += steering / self.mass;
         }
+    }
+
+    pub fn parent_type(&self) -> UnitParentType {
+        self.parent_type
     }
 }

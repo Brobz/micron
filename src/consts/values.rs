@@ -25,6 +25,15 @@ pub const HEALTH_BAR_HEIGHT: f32 = 8.0;
 pub const HEALTH_BAR_Y_FLOAT: f32 = 35.0;
 
 // Base unit stats
+pub const BASE_MINER_MAX_HP: u32 = 100;
+pub const BASE_MINER_RECT_SIZE: i32 = 25;
+pub const MINER_ENT_COLOR: Color = Color::RGB(155, 78, 93);
+pub const BASE_SCOUT_MAX_HP: u32 = 100;
+pub const BASE_SCOUT_RECT_SIZE: i32 = 25;
+pub const SCOUT_ENT_COLOR: Color = Color::RGB(78, 155, 93);
+pub const BASE_COLLECTOR_MAX_HP: u32 = 100;
+pub const BASE_COLLECTOR_RECT_SIZE: i32 = 25;
+pub const COLLECTOR_ENT_COLOR: Color = Color::RGB(93, 78, 155);
 pub const BASE_UNIT_SPEED: f32 = 150.0; // How fast it can move
 pub const BASE_UNIT_DAMAGE: f32 = 3.0; // How much damage it deals when attacking
 pub const BASE_UNIT_RANGE: f32 = 125.0; // How far away can it attack
@@ -52,6 +61,8 @@ pub const SELECTION_ATTACK_TARGET_BORDER_COLOR: Color = Color::RGBA(150, 0, 0, 2
 pub const SELECTION_FOLLOW_TARGET_BORDER_COLOR: Color = Color::RGBA(255, 255, 153, 225);
 // Color of the entity selection follow target border, with alpha
 pub const SELECTION_MINE_TARGET_BORDER_COLOR: Color = Color::RGBA(255, 255, 255, 200);
+// Color of the entity selection collect target borderm with alpha
+pub const SELECTION_COLLECT_TARGET_BORDER_COLOR: Color = Color::RGBA(25, 25, 255, 200);
 // Color of the entity selection border, with alpha
 pub const SELECTION_BORDER_COLOR: Color = Color::RGBA(50, 225, 50, 225);
 

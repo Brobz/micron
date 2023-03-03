@@ -23,6 +23,8 @@ impl World {
     // TODO: Breakup this method into smaller methods
     pub fn tick(&mut self, world_info: &mut WorldInfo) {
         // Tick units
+        // Store a list of any new gameobjects that are to be spawned after this tick
+        let mut game_object_spawn_list: Vec<GameObject> = Vec::<GameObject>::new();
         // Also, store the index of any units that are to be removed after this tick
         let mut ent_cleanup_list: Vec<EntID> = Vec::<EntID>::new();
         for game_object in &mut self.game_objects {
@@ -31,7 +33,9 @@ impl World {
                     // Check if this unit's entity still exists in the world
                     if world_info.has_ent(ent) {
                         match unit {
-                            UnitType::Scout(unit) | UnitType::Worker(unit) => {
+                            UnitType::Scout(unit)
+                            | UnitType::Miner(unit)
+                            | UnitType::Collector(unit) => {
                                 // If so, tick and update world_info
                                 unit.tick(ent, world_info);
                                 world_info.update_ent(ent);
@@ -43,11 +47,25 @@ impl World {
                     }
                 }
                 GameObject::OrePatch(ent, ore_patch) =>
-                // Check if this unit's entity still exists in the world
+                // Check if this ore patch's entity still exists in the world
                 {
                     if world_info.has_ent(ent) {
                         // If so, tick and update world_info
-                        ore_patch.tick(ent, world_info);
+                        if let Some(new_ore) = ore_patch.tick(ent, world_info) {
+                            game_object_spawn_list.push(new_ore);
+                        }
+                        world_info.update_ent(ent);
+                    } else {
+                        // If not, add to cleanup list
+                        ent_cleanup_list.push(ent.id);
+                    }
+                }
+                GameObject::Ore(ent, ore) =>
+                // Check if this ore's entity still exists in the world
+                {
+                    if world_info.has_ent(ent) {
+                        // If so, tick and update world_info
+                        ore.tick(ent, world_info);
                         world_info.update_ent(ent);
                     } else {
                         // If not, add to cleanup list
@@ -58,11 +76,15 @@ impl World {
             }
         }
 
-        // Remove dead units
+        // Spawn new game objects
+        self.game_objects.append(&mut game_object_spawn_list);
+
+        // Remove dead game objects
         self.game_objects.retain(|game_object| match game_object {
             GameObject::Unit(ent, _)
             | GameObject::Structure(ent, _)
-            | GameObject::OrePatch(ent, _) => !ent_cleanup_list.contains(&ent.id),
+            | GameObject::OrePatch(ent, _)
+            | GameObject::Ore(ent, _) => !ent_cleanup_list.contains(&ent.id),
         });
 
         // Tick orders
@@ -130,10 +152,13 @@ impl World {
         for game_object in &mut self.game_objects {
             match game_object {
                 GameObject::Unit(ent, unit) => match unit {
-                    UnitType::Scout(unit) | UnitType::Worker(unit) => unit.draw_orders(ent, canvas),
+                    UnitType::Scout(unit) | UnitType::Miner(unit) | UnitType::Collector(unit) => {
+                        unit.draw_orders(ent, canvas)
+                    }
                 },
                 GameObject::Structure(_ent, _structure) => todo!(),
                 GameObject::OrePatch(_ent, _ore) => (),
+                GameObject::Ore(_ent, _ore) => (),
             }
         }
 
@@ -141,9 +166,12 @@ impl World {
         for game_object in &mut self.game_objects {
             match game_object {
                 GameObject::Unit(ent, unit) => match unit {
-                    UnitType::Scout(unit) | UnitType::Worker(unit) => unit.draw(ent, canvas),
+                    UnitType::Scout(unit) | UnitType::Miner(unit) | UnitType::Collector(unit) => {
+                        unit.draw(ent, canvas)
+                    }
                 },
                 GameObject::OrePatch(ent, ore_patch) => ore_patch.draw(ent, canvas),
+                GameObject::Ore(ent, ore) => ore.draw(ent, canvas),
                 GameObject::Structure(_ent, _structure) => todo!(),
             }
         }
@@ -152,12 +180,13 @@ impl World {
         for game_object in &mut self.game_objects {
             match game_object {
                 GameObject::Unit(ent, unit) => match unit {
-                    UnitType::Scout(unit) | UnitType::Worker(unit) => {
+                    UnitType::Scout(unit) | UnitType::Miner(unit) | UnitType::Collector(unit) => {
                         unit.draw_attack_lines(ent, canvas)
                     }
                 },
                 GameObject::Structure(_ent, _structure) => todo!(),
                 GameObject::OrePatch(_ent, _ore) => (),
+                GameObject::Ore(_ent, _) => (),
             }
         }
 

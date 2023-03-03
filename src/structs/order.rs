@@ -7,10 +7,11 @@ use super::ent::{EntID, EntParentType, Owner};
 pub enum OrderType {
     Move,
     Mine,
+    Collect,
     Follow,
     Attack,
     LazyAttack,
-    AttackMove,
+    ActionMove,
     HoldPosition,
 }
 

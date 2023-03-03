@@ -65,7 +65,7 @@ impl Input {
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
                     ..
-                } => world.selection.engange_command(MouseCommand::Attack),
+                } => world.selection.engange_command(MouseCommand::Action),
 
                 Event::KeyUp {
                     keycode: Some(Keycode::LShift),
@@ -84,9 +84,9 @@ impl Input {
                                 {
                                     // Issue stop order to owned selected units
                                     match unit {
-                                        UnitType::Scout(unit) | UnitType::Worker(unit) => {
-                                            unit.stop(ent)
-                                        }
+                                        UnitType::Scout(unit)
+                                        | UnitType::Miner(unit)
+                                        | UnitType::Collector(unit) => unit.stop(ent),
                                     }
                                 }
                             }
@@ -156,7 +156,7 @@ impl Input {
                 MouseCommand::Select => world
                     .selection
                     .close(scaled_mouse_pos, &mut world.game_objects),
-                MouseCommand::Attack => world.selection.release_command(),
+                MouseCommand::Action => world.selection.release_command(),
             },
             MouseButton::Middle => camera.release(),
             MouseButton::Right | MouseButton::X1 | MouseButton::X2 | MouseButton::Unknown => (),
@@ -184,7 +184,8 @@ impl Input {
             match game_object {
                 GameObject::Unit(ent, _)
                 | GameObject::Structure(ent, _)
-                | GameObject::OrePatch(ent, _) => {
+                | GameObject::OrePatch(ent, _)
+                | GameObject::Ore(ent, _) => {
                     if ent
                         .get_rect()
                         .has_intersection(camera.get_scaled_mouse_rect())
@@ -212,22 +213,23 @@ impl Input {
                             .selection
                             .open(scaled_mouse_pos, &mut world.game_objects);
                     }
-                    MouseCommand::Attack => {
+                    MouseCommand::Action => {
                         // Attack command engage
-                        // This could either trigger a direct attack or an attack move
-                        // If the target is an ore, it should trigger a mine command
+                        // This could either trigger a direct action or an action move
                         let target_is_ore_patch =
                             click_target.ent_parent_type == Some(EntParentType::OrePatch);
+                        let target_is_ore =
+                            click_target.ent_parent_type == Some(EntParentType::Ore);
                         for game_object in &mut world.game_objects {
                             match game_object {
-                                GameObject::Unit(ent, _) => {
+                                GameObject::Unit(ent, unit_type) => {
                                     if ent.selected()
                                         && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                                     {
                                         if !found_target {
-                                            // No attack target found; Issue attack move order
-                                            let attack_move_order = Order::new(
-                                                OrderType::AttackMove,
+                                            // No action target found; Issue attack move order
+                                            let action_move_order = Order::new(
+                                                OrderType::ActionMove,
                                                 Vector2D::<f32>::new(
                                                     scaled_mouse_pos.x as f32,
                                                     scaled_mouse_pos.y as f32,
@@ -235,16 +237,16 @@ impl Input {
                                                 empty_ent_target(),
                                             );
                                             ent.add_order(
-                                                attack_move_order,
+                                                action_move_order,
                                                 !world.selection.queueing,
                                             );
                                         } else {
-                                            // Attack target found; check if it is a valid one
-                                            // (defaults to self in case it's not there, canceling the attack (it should be there tho))
-                                            let attack_target_id =
+                                            // Action target found; check if it is a valid one
+                                            // (defaults to self in case it's not there, canceling the action (it should be there tho))
+                                            let action_target_id =
                                                 click_target.ent_id.unwrap_or(ent.id);
-                                            if attack_target_id == ent.id {
-                                                // Cannot attack yourself!
+                                            if action_target_id == ent.id {
+                                                // Cannot action yourself.. for now!
                                                 continue;
                                             }
 
@@ -255,13 +257,35 @@ impl Input {
                                                 }
                                             }
 
-                                            // Now we know we will either attack or mine from this target!
+                                            // Now we know we will either attack, mine or collect from this target!
                                             // Check ent parent type to know what to do
                                             let new_order_type = if target_is_ore_patch {
                                                 OrderType::Mine
+                                            } else if target_is_ore {
+                                                OrderType::Collect
                                             } else {
                                                 OrderType::Attack
                                             };
+
+                                            // Check if the unit can actually perform this action
+                                            match unit_type {
+                                                UnitType::Scout(_) => {
+                                                    if new_order_type != OrderType::Attack {
+                                                        continue;
+                                                    }
+                                                }
+                                                UnitType::Miner(_) => {
+                                                    if new_order_type != OrderType::Mine {
+                                                        continue;
+                                                    }
+                                                }
+                                                UnitType::Collector(_) => {
+                                                    if new_order_type != OrderType::Collect {
+                                                        continue;
+                                                    }
+                                                }
+                                            }
+
                                             let new_order = Order::new(
                                                 new_order_type,
                                                 Vector2D::<f32>::new(
@@ -269,7 +293,7 @@ impl Input {
                                                     scaled_mouse_pos.y as f32,
                                                 ),
                                                 EntTarget {
-                                                    ent_id: Some(attack_target_id),
+                                                    ent_id: Some(action_target_id),
                                                     ent_rect: click_target.ent_rect,
                                                     ent_owner: click_target.ent_owner,
                                                     ent_parent_type: click_target.ent_parent_type,
@@ -299,7 +323,8 @@ impl Input {
                     match game_object {
                         GameObject::Unit(ent, _)
                         | GameObject::Structure(ent, _)
-                        | GameObject::OrePatch(ent, _) => {
+                        | GameObject::OrePatch(ent, _)
+                        | GameObject::Ore(ent, _) => {
                             if ent
                                 .get_rect()
                                 .has_intersection(camera.get_scaled_mouse_rect())
@@ -316,9 +341,13 @@ impl Input {
                     }
                 }
 
+                let target_is_ore_patch =
+                    click_target.ent_parent_type == Some(EntParentType::OrePatch);
+                let target_is_ore = click_target.ent_parent_type == Some(EntParentType::Ore);
+
                 for game_object in &mut world.game_objects {
                     match game_object {
-                        GameObject::Unit(ent, _) | GameObject::Structure(ent, _) => {
+                        GameObject::Unit(ent, unit_type) => {
                             if ent.selected()
                                 && (ent.owner == Owner::Player || DEBUG_CAN_CONTROL_CPU)
                             {
@@ -341,16 +370,43 @@ impl Input {
                                         // Cannot attack yourself!
                                         continue;
                                     }
-                                    // At this point, we know we will either attack, follow or mine this target, depending on it's type and team
-                                    let new_order_type = if click_target.ent_parent_type
-                                        == Some(EntParentType::OrePatch)
-                                    {
+                                    // At this point, we know we will either attack, follow, collect or mine this target, depending on it's type and team
+                                    // Now we know we will either attack, mine or collect from this target!
+                                    // Check ent parent type to know what to do
+                                    let new_order_type = if target_is_ore_patch {
                                         OrderType::Mine
+                                    } else if target_is_ore {
+                                        OrderType::Collect
                                     } else if click_target.ent_owner == Some(ent.owner) {
                                         OrderType::Follow
                                     } else {
                                         OrderType::Attack
                                     };
+
+                                    // Check if the unit can actually perform this action
+                                    match unit_type {
+                                        UnitType::Scout(_) => {
+                                            if !(vec![OrderType::Attack, OrderType::Follow]
+                                                .contains(&new_order_type))
+                                            {
+                                                continue;
+                                            }
+                                        }
+                                        UnitType::Miner(_) => {
+                                            if !(vec![OrderType::Mine, OrderType::Follow]
+                                                .contains(&new_order_type))
+                                            {
+                                                continue;
+                                            }
+                                        }
+                                        UnitType::Collector(_) => {
+                                            if !(vec![OrderType::Collect, OrderType::Follow]
+                                                .contains(&new_order_type))
+                                            {
+                                                continue;
+                                            }
+                                        }
+                                    }
 
                                     let new_order = Order::new(
                                         new_order_type,

@@ -2,7 +2,6 @@ use crate::structs::unit::Unit;
 
 pub enum UnitType {
     Scout(Unit),
-    Worker(Unit),
+    Miner(Unit),
+    Collector(Unit),
 }
-
-// TODO: Maybe move some of the impl of Unit into Unit type
