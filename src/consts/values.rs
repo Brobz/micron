@@ -62,7 +62,7 @@ pub const SELECTION_FOLLOW_TARGET_BORDER_COLOR: Color = Color::RGBA(255, 255, 15
 // Color of the entity selection follow target border, with alpha
 pub const SELECTION_MINE_TARGET_BORDER_COLOR: Color = Color::RGBA(255, 255, 255, 200);
 // Color of the entity selection collect target borderm with alpha
-pub const SELECTION_COLLECT_TARGET_BORDER_COLOR: Color = Color::RGBA(25, 25, 255, 200);
+pub const SELECTION_COLLECT_TARGET_BORDER_COLOR: Color = Color::RGBA(175, 25, 55, 200);
 // Color of the entity selection border, with alpha
 pub const SELECTION_BORDER_COLOR: Color = Color::RGBA(50, 225, 50, 225);
 

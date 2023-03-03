@@ -51,21 +51,53 @@ pub struct Unit {
     velocity: Vector2D<f32>,
     desired_velocity: Vector2D<f32>,
     mass: f32,
+    storage: f32,
+    max_storage: f32,
     parent_type: UnitParentType,
 }
 
 impl Unit {
     pub fn new(parent_type: UnitParentType) -> Self {
-        Self {
-            speed: BASE_UNIT_SPEED,
-            damage: BASE_UNIT_DAMAGE,
-            range: BASE_UNIT_RANGE,
-            current_action: Action::None,
-            interaction_line_render_latch_point_delta: None,
-            velocity: Vector2D::<f32>::new(0.0, 0.0),
-            desired_velocity: Vector2D::<f32>::new(0.0, 0.0),
-            mass: BASE_UNIT_MASS,
-            parent_type,
+        match parent_type {
+            UnitParentType::Miner => Self {
+                speed: BASE_UNIT_SPEED,
+                damage: BASE_UNIT_DAMAGE,
+                range: BASE_UNIT_RANGE,
+                current_action: Action::None,
+                interaction_line_render_latch_point_delta: None,
+                velocity: Vector2D::<f32>::new(0.0, 0.0),
+                desired_velocity: Vector2D::<f32>::new(0.0, 0.0),
+                mass: BASE_UNIT_MASS,
+                storage: 0.0,
+                max_storage: 0.0,
+                parent_type,
+            },
+            UnitParentType::Scout => Self {
+                speed: BASE_UNIT_SPEED,
+                damage: BASE_UNIT_DAMAGE,
+                range: BASE_UNIT_RANGE,
+                current_action: Action::None,
+                interaction_line_render_latch_point_delta: None,
+                velocity: Vector2D::<f32>::new(0.0, 0.0),
+                desired_velocity: Vector2D::<f32>::new(0.0, 0.0),
+                mass: BASE_UNIT_MASS,
+                storage: 0.0,
+                max_storage: 0.0,
+                parent_type,
+            },
+            UnitParentType::Collector => Self {
+                speed: BASE_UNIT_SPEED,
+                damage: BASE_UNIT_DAMAGE,
+                range: BASE_UNIT_RANGE,
+                current_action: Action::None,
+                interaction_line_render_latch_point_delta: None,
+                velocity: Vector2D::<f32>::new(0.0, 0.0),
+                desired_velocity: Vector2D::<f32>::new(0.0, 0.0),
+                mass: BASE_UNIT_MASS,
+                storage: 0.0,
+                max_storage: 100.0,
+                parent_type,
+            },
         }
     }
 
@@ -414,22 +446,21 @@ impl Unit {
                         }
                     }
 
-                    // A collect order can be done if the unit's storage is full
-                    OrderType::Collect => {
-                        // TODO: check storage and complete order when necessary
-                    }
                     // A follow order can never be completed!
                     // It can only get cleard or canceled (if the followed unit dies)
                     // To complete an attack or lazy attack order, the target must be DEAD!
                     // To complete a mine order, ore must be destroyed (emptied)!
-                    // That gets checked right before trying to attack it during execution,
+                    // A collect order can be done if the unit's storage is full, or the target ore expires!
+                    // All of that gets checked right before trying to attack it during execution,
                     // So it can get completed and cleaned up there as well.
                     // Same thing with HoldPosition, gets cleared right after execution.
+                    // TODO: Check that stuff over here instead to make upper function more readable
                     OrderType::LazyAttack
                     | OrderType::Attack
                     | OrderType::Follow
                     | OrderType::HoldPosition
-                    | OrderType::Mine => (),
+                    | OrderType::Mine
+                    | OrderType::Collect => (),
                 }
             }
             if did_complete_order {
@@ -670,6 +701,10 @@ impl Unit {
                         }
                     }
                     UnitParentType::Collector => {
+                        // If already full, ignore ore!
+                        if self.storage >= self.max_storage {
+                            return;
+                        }
                         if let Some(ent_rect) = closest_ent_in_range.ent_rect {
                             let collect_order = Order::new(
                                 OrderType::Collect,
@@ -817,13 +852,17 @@ impl Unit {
             }
 
             OrderType::Collect => {
-                //  TODO:
-                //  TODO: GRAB RESOURCE FROM ORE AND STORE IN UNIT CARGO
-                //          => CHECK FOR FULLNESS, ETC.
-                //      THEN ADD DEPOSIT ORDER
+                //  TODO: ADD DEPOSIT ORDER
                 //      => 3. Unit mining stores this ore on itself (maybe up to a certain carry_capacity, and with some increase to its mass  so its more clumsy (?)
                 //                                                  or just a speed debuff for carrying (maybe no attacking att full cap, must drop to attack?))
                 //      => 4. Unit must beam ore back into mainframe for collection and later use
+
+                // If full, can't collect!
+                println!("storage: {}", self.storage);
+                if self.storage >= self.max_storage {
+                    // Return true for a completed order
+                    return true;
+                }
 
                 // Unit should stop moving if it gets within a certain distance of it's collect target
                 // If target is no longer, complete order
@@ -844,7 +883,16 @@ impl Unit {
                     {
                         // If target is in range, check if already collecting
                         if self.current_action == Action::Collecting {
-                            world_info.damage_ent(collect_target_id, self.damage * TIME_STEP);
+                            let mut amount_to_collect = self.damage * TIME_STEP;
+                            if amount_to_collect > self.max_storage - self.storage {
+                                amount_to_collect = self.max_storage - self.storage;
+                            }
+                            let potential_ore_gathered =
+                                world_info.damage_ent(collect_target_id, amount_to_collect);
+                            if let Some(ore_gathered) = potential_ore_gathered {
+                                // TODO: increase collectors mass when carrying heavy load
+                                self.storage += ore_gathered / 100.0;
+                            }
                         } else {
                             // Else, start collecting
                             if let Some(ent_rect) = next_order.ent_target.ent_rect {

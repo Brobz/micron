@@ -62,20 +62,21 @@ impl WorldInfo {
         self.ent_rect.insert(ent.id, ent_rect);
     }
 
-    pub fn damage_ent(&mut self, ent_id: EntID, dmg: f32) {
-        if self.ent_hp.get_mut(&ent_id).is_none() {
-            return;
-        }
+    pub fn damage_ent(&mut self, ent_id: EntID, dmg: f32) -> Option<f32> {
+        self.ent_hp.get_mut(&ent_id)?;
 
         if let Some(hp) = self.ent_hp.get_mut(&ent_id) {
-            let new_hp = *hp - dmg;
+            let mut new_hp = *hp - dmg;
             if new_hp < 0.0 {
+                new_hp = 0.0;
                 self.remove_ent_by_id(ent_id);
             } else {
                 self.ent_hp.remove(&ent_id);
                 self.ent_hp.insert(ent_id, new_hp);
             }
+            return Some(new_hp);
         }
+        None
     }
 
     pub fn add_ent(&mut self, ent: &Ent) {
@@ -133,6 +134,12 @@ impl WorldInfo {
             if let Some(health) = self.ent_hp.get(ent_id) {
                 if let Some(max_health) = self.ent_max_hp.get(ent_id) {
                     if let Some(pos) = self.ent_rect_center.get(ent_id) {
+                        if let Some(parent_type) = self.ent_parent_type.get(ent_id) {
+                            // No health bars for ore
+                            if *parent_type == EntParentType::Ore {
+                                continue;
+                            }
+                        }
                         let empty_health_bar_rec = Rect::from_center(
                             Point::new(pos.x as i32, (pos.y - HEALTH_BAR_Y_FLOAT) as i32),
                             HEALTH_BAR_WIDTH as u32,

@@ -54,6 +54,6 @@ pub fn spawn_debug_ents(n: i32, world: &mut World, world_info: &mut WorldInfo) {
     world_info.add_ent(&new_ent);
     world.game_objects.push(GameObject::OrePatch(
         new_ent,
-        OrePatch::new(OreType::Blue, 10, 5),
+        OrePatch::new(OreType::Blue, 10, 0.1),
     ));
 }

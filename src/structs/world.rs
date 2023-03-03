@@ -80,6 +80,7 @@ impl World {
         self.game_objects.append(&mut game_object_spawn_list);
 
         // Remove dead game objects
+        // TODO: collectors must drop all storage on death on an ore ball
         self.game_objects.retain(|game_object| match game_object {
             GameObject::Unit(ent, _)
             | GameObject::Structure(ent, _)

@@ -1,4 +1,5 @@
-use sdl2::{gfx::primitives::DrawRenderer, render::Canvas, video::Window};
+use sdl2::{gfx::primitives::DrawRenderer, rect::Point, render::Canvas, video::Window};
+use vector2d::Vector2D;
 
 use crate::consts::{
     helper::draw_circle_selection_border,
@@ -9,11 +10,11 @@ use super::{ent::Ent, ore_patch::OreType, world_info::WorldInfo};
 
 pub struct Ore {
     ore_type: OreType,
-    value: u32,
+    value: f32,
 }
 
 impl Ore {
-    pub fn new(ore_type: OreType, value: u32) -> Self {
+    pub fn new(ore_type: OreType, value: f32) -> Self {
         Self { ore_type, value }
     }
 
@@ -26,6 +27,10 @@ impl Ore {
         if ent.hp <= 0.0 {
             return;
         }
+
+        // Update ent rect to have same dimensions as current radius
+        let current_radius = self.get_radius(ent);
+        ent.rect_size = Point::new(current_radius as i32, current_radius as i32);
     }
 
     pub fn draw(&self, ent: &mut Ent, canvas: &mut Canvas<Window>) {
@@ -35,28 +40,39 @@ impl Ore {
         }
         // If selected, draw selection border
         if ent.selected() {
-            let border_color = WHITE_RGB;
-            draw_circle_selection_border(canvas, ent.position, self.value as i16, border_color);
+            let ent_rect_center = ent.get_rect().center();
+            draw_circle_selection_border(
+                canvas,
+                Vector2D::<f32>::new(ent_rect_center.x as f32, ent_rect_center.y as f32),
+                self.get_radius(ent),
+                WHITE_RGB,
+            );
         }
+
+        let ent_rect_center = ent.get_rect().center();
 
         // Draw self (if alive)
         canvas.set_draw_color(ent.color);
         canvas
             .filled_circle(
-                ent.position.x as i16,
-                ent.position.y as i16,
-                self.value as i16,
+                ent_rect_center.x as i16,
+                ent_rect_center.y as i16,
+                self.get_radius(ent),
                 ent.color,
             )
             .ok();
         canvas.set_draw_color(BLACK_RGB);
         canvas
             .circle(
-                ent.position.x as i16,
-                ent.position.y as i16,
-                self.value as i16,
+                ent_rect_center.x as i16,
+                ent_rect_center.y as i16,
+                self.get_radius(ent),
                 ent.color,
             )
             .ok();
+    }
+
+    pub fn get_radius(&self, ent: &Ent) -> i16 {
+        ((self.value * 100.0) * (ent.hp / ent.max_hp as f32)) as i16
     }
 }
